@@ -6,6 +6,7 @@ import {
   type FieldDescriptor,
   type PageInfo,
 } from '@ufa/core'
+import { createAutofillStore } from '@ufa/storage'
 
 import { createStore } from './store'
 import type { AutofillConfiguration, AutofillController, AutofillState } from './types'
@@ -32,6 +33,16 @@ export function createAutofill(config: AutofillConfiguration): AutofillControlle
   const now = config.now ?? Date.now
   const store = createStore<AutofillState>(INITIAL_STATE)
   const events = createEventBus((error) => logger.warn('event handler failed', error))
+  const ownsData = !config.store
+  const data = config.store ?? createAutofillStore({ adapter: config.storage, now, logger })
+  const stopDataEvents = data.onChange((change) => {
+    for (const collection of change.collections) events.emit({ type: 'data:changed', collection })
+    if (change.activeProfileChanged)
+      events.emit({
+        type: 'profile:changed',
+        profileId: data.getSnapshot().activeProfile?.id ?? null,
+      })
+  })
   let pendingConnect: Promise<PageInfo | null> | null = null
   let pendingScan: Promise<FieldDescriptor[]> | null = null
   /** Frames that reported their fields while a scan was in flight; those reports are newer. */
@@ -99,6 +110,7 @@ export function createAutofill(config: AutofillConfiguration): AutofillControlle
   const connect = (): Promise<PageInfo | null> => {
     if (destroyed) return Promise.reject(destroyedError())
     if (pendingConnect) return pendingConnect
+    void data.ready()
     store.setState({ status: 'connecting', error: null })
     pendingConnect = config.driver
       .connect()
@@ -157,6 +169,7 @@ export function createAutofill(config: AutofillConfiguration): AutofillControlle
   })
 
   return {
+    store: data,
     getState: store.getState,
     subscribe: store.subscribe,
     on: events.on,
@@ -166,6 +179,8 @@ export function createAutofill(config: AutofillConfiguration): AutofillControlle
       if (destroyed) return
       destroyed = true
       stopDriverEvents()
+      stopDataEvents()
+      if (ownsData) data.dispose()
       events.clear()
       store.setState({ status: 'destroyed', scanning: false })
       await config.driver.dispose()

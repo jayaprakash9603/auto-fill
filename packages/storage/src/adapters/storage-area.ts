@@ -43,6 +43,10 @@ export function createStorageAreaAdapter(options: StorageAreaAdapterOptions): St
 
   return {
     id: options.id ?? 'storage-area',
+    capabilities: {
+      atomicBatch: true,
+      changeEvents: options.area.onChanged ? 'cross-context' : 'none',
+    },
     get<T>(key: string) {
       return wrap(async () => (await options.area.get(full(key)))[full(key)] as T | undefined)
     },

@@ -14,6 +14,7 @@ export function createMemoryStorage(
 
   return {
     id: 'memory',
+    capabilities: { atomicBatch: true, changeEvents: 'local' },
     async get<T>(key: string) {
       return clone(data.get(key)) as T | undefined
     },

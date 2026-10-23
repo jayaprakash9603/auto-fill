@@ -8,6 +8,7 @@ import type {
   PageInfo,
   StorageAdapter,
 } from '@ufa/core'
+import type { AutofillStore } from '@ufa/storage'
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'ready' | 'error' | 'destroyed'
 
@@ -36,12 +37,19 @@ export interface AutofillConfiguration {
   driver: PageDriver
   /** Where profiles, answers and settings persist. Supplied by the host. */
   storage: StorageAdapter
+  /**
+   * An existing data store over `storage` to share between controllers. When omitted, the
+   * controller creates its own and disposes it on `destroy()`.
+   */
+  store?: AutofillStore
   logger?: Logger
   /** Injectable clock for deterministic tests. */
   now?: () => number
 }
 
 export interface AutofillController {
+  /** Profiles, answers, custom fields and settings. Usable whether or not a page is connected. */
+  readonly store: AutofillStore
   getState(): AutofillState
   subscribe(listener: (state: AutofillState) => void): () => void
   on<T extends AutofillEventType>(type: T, handler: AutofillEventHandler<T>): () => void

@@ -114,3 +114,19 @@ export function classifySensitivity(signals: SensitivitySignals): SensitivityVer
   }
   return { sensitivity: 'normal', reason: null }
 }
+
+/**
+ * Why an answer with these labels may not be stored, or null when it may. Passwords, one-time
+ * codes, payment and banking details, government identifiers and secrets are never saved, whether
+ * typed in, learned or imported.
+ */
+export function prohibitedAnswerReason(
+  labels: readonly (string | null | undefined)[],
+): string | null {
+  for (const label of labels) {
+    if (!label) continue
+    const verdict = classifySensitivity({ type: 'text', label })
+    if (verdict.sensitivity === 'prohibited') return verdict.reason
+  }
+  return null
+}

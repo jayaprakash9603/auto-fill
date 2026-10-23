@@ -2,6 +2,7 @@ import { resolve } from 'node:path'
 
 import type { Page } from '@playwright/test'
 
+import { addAnswer, createProfile } from './support/data'
 import { expect, test } from './support/fixtures'
 
 /*
@@ -77,5 +78,39 @@ test.describe('Browser Toolbox integration', () => {
     expect(toggled.panel).toBe(toggled.host)
 
     expect(await readFormState(page)).toEqual(before)
+  })
+
+  test('profiles and saved answers persist across reloads in the toolbox', async ({
+    context,
+    extensionId,
+    serviceWorker,
+  }) => {
+    const page = await context.newPage()
+    await page.goto(`chrome-extension://${extensionId}/${TOOL_URL}`)
+    const panel = page.locator('.ufa-root:not([data-ufa-portal])')
+    const selected = panel.getByRole('combobox', { name: 'Profile' }).locator('option:checked')
+    await expect(selected).toHaveText('General (Default)')
+
+    await createProfile(page, 'Backend roles', 'Software developer', panel)
+    await panel.getByRole('button', { name: 'Use Backend roles for filling' }).click()
+    await expect(selected).toHaveText('Backend roles')
+    await addAnswer(page, 'Notice period', 'Two weeks', panel)
+
+    await page.reload()
+    await expect(selected).toHaveText('Backend roles')
+    await panel.getByRole('tab', { name: 'Answers' }).click()
+    await expect(panel.getByText('Notice period')).toBeVisible()
+
+    const keys = await serviceWorker.evaluate(async () =>
+      Object.keys(await chrome.storage.local.get(null)).filter((key) => key.includes(':')),
+    )
+    expect(keys.filter((key) => key.startsWith('browser_toolbox_autofill:')).sort()).toEqual([
+      'browser_toolbox_autofill:answers',
+      'browser_toolbox_autofill:customFields',
+      'browser_toolbox_autofill:mappings',
+      'browser_toolbox_autofill:meta',
+      'browser_toolbox_autofill:profiles',
+      'browser_toolbox_autofill:settings',
+    ])
   })
 })

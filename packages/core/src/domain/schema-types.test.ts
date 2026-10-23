@@ -6,6 +6,7 @@ import type {
   answerContextSchema,
   answerRecordSchema,
   answerValueSchema,
+  customFieldSchema,
   fieldMappingSchema,
   profileSchema,
 } from './answers'
@@ -15,6 +16,7 @@ import {
   type AnswerRecord,
   type AnswerRecordInput,
   type AnswerValue,
+  type CustomFieldDefinition,
   type FieldMapping,
   type Profile,
 } from './answers'
@@ -90,6 +92,7 @@ const checks: Record<string, true> = {
   AnswerRecord: true satisfies Out<typeof answerRecordSchema, AnswerRecord>,
   AnswerRecordInput: true satisfies In<typeof answerRecordSchema, AnswerRecordInput>,
   Profile: true satisfies Out<typeof profileSchema, Profile>,
+  CustomFieldDefinition: true satisfies Out<typeof customFieldSchema, CustomFieldDefinition>,
   FieldMapping: true satisfies Out<typeof fieldMappingSchema, FieldMapping>,
   ConfidenceThresholds: true satisfies Out<typeof confidenceThresholdsSchema, ConfidenceThresholds>,
   AutofillSettings: true satisfies Out<typeof autofillSettingsSchema, AutofillSettings>,

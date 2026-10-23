@@ -129,6 +129,8 @@ export interface Profile {
   description: string
   kind: ProfileKind
   isDefault: boolean
+  /** Blank template the profile was created from; decides which fields its editor lists. */
+  templateId: string | null
   createdAt: number
   updatedAt: number
 }
@@ -139,6 +141,37 @@ export const profileSchema = z.object({
   description: z.string().max(500).default(''),
   kind: z.enum(PROFILE_KINDS).default('custom'),
   isDefault: z.boolean().default(false),
+  templateId: z.string().max(100).nullable().default(null),
+  createdAt: z.number().int().nonnegative(),
+  updatedAt: z.number().int().nonnegative(),
+})
+
+export const CUSTOM_FIELD_KEY_PATTERN = /^custom:[a-z0-9-]{1,100}$/
+
+/**
+ * A field the user defined because the catalog has no key for it, such as "Preferred office".
+ * Answers point at it through `semanticKey`, and matching treats its aliases like catalog aliases.
+ */
+export interface CustomFieldDefinition {
+  /** `custom:<slug>`, derived from the first label and kept when the label changes. */
+  key: string
+  label: string
+  description: string
+  category: AnswerCategory
+  aliases: AnswerAlias[]
+  /** Preferred control types. Empty means any compatible control. */
+  controlTypes: FieldType[]
+  createdAt: number
+  updatedAt: number
+}
+
+export const customFieldSchema = z.object({
+  key: z.string().regex(CUSTOM_FIELD_KEY_PATTERN),
+  label: z.string().trim().min(1).max(300),
+  description: z.string().max(500).default(''),
+  category: answerCategorySchema.default('custom'),
+  aliases: z.array(answerAliasSchema).max(100).default([]),
+  controlTypes: z.array(fieldTypeSchema).max(30).default([]),
   createdAt: z.number().int().nonnegative(),
   updatedAt: z.number().int().nonnegative(),
 })

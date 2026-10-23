@@ -1,6 +1,11 @@
 import { createAutofill, type AutofillController, type AutofillHost } from '@ufa/autofill-sdk'
 import { AutofillError, type Logger, type StorageAdapter } from '@ufa/core'
-import { createStorageAreaAdapter, type StorageAreaLike } from '@ufa/storage'
+import {
+  createAutofillStore,
+  createStorageAreaAdapter,
+  type AutofillStore,
+  type StorageAreaLike,
+} from '@ufa/storage'
 
 import type { ChromeLike } from './chrome-like'
 import { createExtensionTabDriver, type ExtensionTabDriverOptions } from './tab-driver'
@@ -21,6 +26,11 @@ export interface ExtensionAutofillHostOptions {
 export interface ExtensionAutofillHost extends AutofillHost {
   /** Resolved lazily so creating the host never touches extension APIs. */
   getStorage(): StorageAdapter
+  /**
+   * The profiles-and-answers store every controller of this host shares. Pages without a tab to
+   * fill, such as an options page, can use it directly.
+   */
+  getStore(): AutofillStore
   requestPageAccess(): Promise<boolean>
 }
 
@@ -58,15 +68,27 @@ export function createExtensionAutofillHost(
     return storage
   }
 
+  let store: AutofillStore | null = null
+  const getStore = (): AutofillStore => {
+    store ??= createAutofillStore({ adapter: getStorage(), logger: options.logger })
+    return store
+  }
+
   return {
     getStorage,
+    getStore,
     createController(): AutofillController {
       const driver = createExtensionTabDriver({
         chrome: options.chrome,
         contentScriptFile: options.contentScriptFile,
         tabId: options.tabId,
       })
-      return createAutofill({ driver, storage: getStorage(), logger: options.logger })
+      return createAutofill({
+        driver,
+        storage: getStorage(),
+        store: getStore(),
+        logger: options.logger,
+      })
     },
     async requestPageAccess() {
       if (!options.chrome.permissions) return false

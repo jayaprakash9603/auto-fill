@@ -11,16 +11,16 @@ knowledge lives in adapters, and field meaning comes from a semantic catalog tha
 
 ## Packages
 
-| Package                     | Role                                                                                                                                       |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `packages/core`             | Domain types and their Zod schemas, error codes, events, the plugin registry, safety classification, semantic catalog, redacting logger    |
-| `packages/field-detection`  | DOM scanner: detector plugins, label resolution, section context, visibility, stable field ids, mutation observer (see FIELD_DETECTION.md) |
-| `packages/storage`          | `StorageAdapter` implementations: in-memory and any `chrome.storage`-compatible area, with namespaced keys                                 |
-| `packages/autofill-sdk`     | Headless controller (`createAutofill`), the page runtime, the DOM page driver and the `ufa/v1` message protocol                            |
-| `packages/extension-bridge` | Extension-page host: resolves the target tab, injects the runtime, proxies the page driver over `chrome.runtime` messaging                 |
-| `packages/ui`               | React panel and shadcn/ui-based components, scoped stylesheet, theme adapter, messages                                                     |
-| `packages/public-sdk`       | The published facade. Bundles everything above into `release/sdk`                                                                          |
-| `apps/chrome-extension`     | The standalone MV3 extension                                                                                                               |
+| Package                     | Role                                                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/core`             | Domain types and their Zod schemas, error codes, events, the plugin registry, safety classification, semantic catalog, redacting logger     |
+| `packages/field-detection`  | DOM scanner: detector plugins, label resolution, section context, visibility, stable field ids, mutation observer (see FIELD_DETECTION.md)  |
+| `packages/storage`          | The profiles-and-answers store, migrations, import/export, and adapters: memory, `chrome.storage`, IndexedDB, host-provided (DATA_MODEL.md) |
+| `packages/autofill-sdk`     | Headless controller (`createAutofill`), the page runtime, the DOM page driver and the `ufa/v1` message protocol                             |
+| `packages/extension-bridge` | Extension-page host: resolves the target tab, injects the runtime, proxies the page driver over `chrome.runtime` messaging                  |
+| `packages/ui`               | React panel and shadcn/ui-based components, scoped stylesheet, theme adapter, messages                                                      |
+| `packages/public-sdk`       | The published facade. Bundles everything above into `release/sdk`                                                                           |
+| `apps/chrome-extension`     | The standalone MV3 extension                                                                                                                |
 
 Later phases add `matching-engine`, `form-actions`, `learning-engine`, `synthetic-data` and
 `portal-adapters` packages, plus `apps/demo-host-extension`, which may only import the public package.
@@ -41,6 +41,7 @@ flowchart BT
   bridge[extension-bridge] --> autofillSdk
   bridge --> storage
   ui --> autofillSdk
+  ui --> storage
   publicSdk[public-sdk] --> ui
   publicSdk --> bridge
   extension[apps/chrome-extension] --> ui
@@ -103,10 +104,17 @@ share one attempt), and `scan()`. Page updates replace the fields of the frame t
 frame's report that arrives during a scan wins over the scan's older snapshot of that frame. React binds through
 `useAutofillController(host)`, which owns the controller's lifetime, and `useAutofillState(controller)`.
 
+Each controller exposes `controller.store`, the profiles-and-answers store. Pass `store` to share one
+across controllers; otherwise the controller creates one over `storage` and disposes it on
+`destroy()`. Store changes are re-emitted on the event bus as `data:changed` (per collection) and
+`profile:changed`. The panel shows the store in its Answers, Profiles and Data tabs, with the profile
+selector above them, so saved data stays manageable on pages that cannot be read.
+
 `AutofillHost` is what a UI needs from its environment: `createController()` plus an optional
 `requestPageAccess()` that must be called from a user gesture. `createExtensionAutofillHost` builds one
 from the host's `chrome` object; it touches no extension API until a controller connects, so hosts can
-create it at module scope.
+create it at module scope. Its `getStore()` returns the single store all of its controllers share,
+which is also what the extension's options page uses.
 
 ## Plugins
 
@@ -132,6 +140,8 @@ These rules belong to the engine, not to any UI, so every host gets them:
   controls are left out of scans by default and are never filled or cleared.
 - Consent, terms and declaration controls are never set automatically; each needs explicit selection.
 - Non-empty fields are not overwritten by default, and forms are never submitted.
+- Answers and custom fields whose labels look like secrets are rejected when saved and skipped on
+  import.
 - Learning is opt-in. Synthetic values are marked as generated, are never stored as answers, and are
   blocked for factual and legal categories.
 - Logging goes through a redacting logger. The engine makes no network requests; profile data stays in
@@ -139,10 +149,17 @@ These rules belong to the engine, not to any UI, so every host gets them:
 
 ## Storage
 
-`StorageAdapter` is a small async key-value contract. Phase 1 ships the in-memory adapter and the
-`chrome.storage` area adapter, which prefixes every key with the host's namespace (for example
-`browser_toolbox_autofill`) so several products can share one storage area. IndexedDB and host-provided
-adapters, schema migrations, and import/export arrive with profiles in Phase 3.
+`StorageAdapter` (in `core`) is a small async key-value contract with optional atomic `setMany`,
+change subscriptions and declared `capabilities`. `packages/storage` provides four adapters: in-memory,
+any `chrome.storage` area, IndexedDB, and a wrapper for host-provided backends. Each prefixes keys with
+the host's namespace (for example `browser_toolbox_autofill`) so several products can share one area.
+
+`createAutofillStore` builds the data layer on top: one validated document per collection (profiles,
+answers, custom fields, mappings, settings), a versioned `meta` document, migrations written in a
+single batch, serialized writes, live reloads on external changes, duplicate detection, and
+import/export with a preview. Data written by a newer version is left untouched and the store reports
+an error instead of rewriting it. DATA_MODEL.md documents the records, the guarantees and the
+limitations.
 
 ## Styling and theming
 

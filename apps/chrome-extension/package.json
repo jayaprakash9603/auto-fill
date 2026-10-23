@@ -15,6 +15,7 @@
     "@ufa/autofill-sdk": "workspace:*",
     "@ufa/core": "workspace:*",
     "@ufa/extension-bridge": "workspace:*",
+    "@ufa/storage": "workspace:*",
     "@ufa/ui": "workspace:*",
     "lucide-react": "^1.61.0",
     "react": "^19.3.1",

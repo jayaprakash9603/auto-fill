@@ -21,6 +21,7 @@
   "dependencies": {
     "@ufa/autofill-sdk": "workspace:*",
     "@ufa/core": "workspace:*",
+    "@ufa/storage": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.61.0",
@@ -33,7 +34,6 @@
     "@testing-library/user-event": "^14.6.8",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@ufa/storage": "workspace:*",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "tailwindcss": "^4.3.3",

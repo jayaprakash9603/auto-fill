@@ -8,6 +8,9 @@ import type {
 } from '../domain/results'
 import type { PageInfo } from '../domain/page'
 
+export type DataCollection =
+  'profiles' | 'answers' | 'customFields' | 'mappings' | 'settings' | 'candidates'
+
 /** Structured events. Payloads never include profile values, only ids, counts and statuses. */
 export type AutofillEvent =
   | { type: 'connected'; page: PageInfo }
@@ -31,7 +34,7 @@ export type AutofillEvent =
   | { type: 'page:changed'; url: string }
   | {
       type: 'data:changed'
-      collection: 'profiles' | 'answers' | 'mappings' | 'settings' | 'candidates'
+      collection: DataCollection
     }
   | { type: 'plugin:error'; pluginId: string; message: string }
   | { type: 'error'; code: AutofillErrorCode; message: string }

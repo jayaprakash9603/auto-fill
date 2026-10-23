@@ -276,6 +276,35 @@ describe('AutofillPanel', () => {
     expect(screen.getByText('1 field')).toBeInTheDocument()
   })
 
+  it('offers profiles and saved answers even when the page cannot be read', async () => {
+    const user = userEvent.setup()
+    const driver = fakeDriver(async () => {
+      throw new AutofillError('RESTRICTED_PAGE', 'nope')
+    })
+    render(<AutofillPanel host={hostFor(driver)} />)
+    expect(await screen.findByText("This page can't be autofilled")).toBeInTheDocument()
+
+    const selector = await screen.findByRole('combobox', { name: 'Profile' })
+    await waitFor(() => expect(selector).toHaveDisplayValue(/General/))
+
+    await user.click(screen.getByRole('tab', { name: 'Answers' }))
+    expect(await screen.findByText('No saved answers yet')).toBeInTheDocument()
+    expect(screen.queryByText("This page can't be autofilled")).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: 'Profiles' }))
+    expect(await screen.findByRole('list', { name: 'Your profiles' })).toHaveTextContent('General')
+
+    await user.click(screen.getByRole('tab', { name: 'Data' }))
+    expect(await screen.findByRole('button', { name: 'Export data' })).toBeInTheDocument()
+  })
+
+  it('opens on the requested tab', async () => {
+    const driver = fakeDriver(async () => PAGE)
+    render(<AutofillPanel host={hostFor(driver)} defaultTab="answers" />)
+    expect(await screen.findByRole('tab', { name: 'Answers', selected: true })).toBeInTheDocument()
+    expect(await screen.findByText('No saved answers yet')).toBeInTheDocument()
+  })
+
   it('keeps the heading for assistive technology only when embedded', async () => {
     const driver = fakeDriver(async () => PAGE)
     render(<AutofillPanel host={hostFor(driver)} embedded />)

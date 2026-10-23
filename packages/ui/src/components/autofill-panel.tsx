@@ -1,17 +1,27 @@
 import type { AutofillController, AutofillHost, AutofillState } from '@ufa/autofill-sdk'
+import type { AutofillStore } from '@ufa/storage'
 import { PlugZapIcon, RotateCwIcon, SearchXIcon } from 'lucide-react'
-import { useCallback, type ReactNode } from 'react'
+import { useCallback, useState, type ReactNode } from 'react'
 
 import { useAutofillController, useAutofillState } from '../hooks/use-autofill'
+import { useStoreSnapshot } from '../hooks/use-store'
 import { MessagesProvider, useTranslate, type AutofillMessages } from '../i18n/messages'
 import { cn } from '../lib/cn'
 import type { AutofillTheme } from '../theme/theme'
 import { AutofillRoot } from './autofill-root'
+import { AnswerLibrary } from './data/answer-library'
+import { CustomFieldsManager } from './data/custom-fields'
+import { DataManager } from './data/data-manager'
+import { ProfileManager } from './data/profile-manager'
+import { ProfileSelector } from './data/profile-selector'
 import { FieldList } from './field-list'
 import { ConnectionBadge, PortalStatus } from './portal-status'
 import { EmptyState, ErrorState, PermissionNotice, RestrictedPageState } from './states'
 import { Button } from './ui/button'
 import { Spinner } from './ui/misc'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
+
+export type AutofillPanelTab = 'page' | 'answers' | 'profiles' | 'data'
 
 export interface AutofillPanelProps {
   /** Supplies controllers (and page access requests). Either `host` or `controller` is required. */
@@ -22,6 +32,8 @@ export interface AutofillPanelProps {
   messages?: AutofillMessages
   /** Removes the panel's own frame so it sits flush inside a host layout. */
   embedded?: boolean
+  /** Tab shown first. Defaults to the page's fields. */
+  defaultTab?: AutofillPanelTab
   className?: string
 }
 
@@ -31,6 +43,7 @@ export function AutofillPanel({
   theme,
   messages,
   embedded = false,
+  defaultTab = 'page',
   className,
 }: AutofillPanelProps) {
   return (
@@ -43,27 +56,39 @@ export function AutofillPanel({
       )}
     >
       <MessagesProvider messages={messages}>
-        <PanelBody host={host} controller={controller} hideTitle={embedded} />
+        <PanelBody
+          host={host}
+          controller={controller}
+          hideTitle={embedded}
+          defaultTab={defaultTab}
+        />
       </MessagesProvider>
     </AutofillRoot>
   )
 }
 
+const TAB_CONTENT =
+  'ufa:flex ufa:min-h-0 ufa:flex-1 ufa:flex-col ufa:gap-3 ufa:overflow-y-auto ufa:p-3'
+
 function PanelBody({
   host,
   controller: external,
   hideTitle,
+  defaultTab,
 }: {
   host?: AutofillHost
   controller?: AutofillController
   /** The host page already shows a title; keep the heading for assistive technology only. */
   hideTitle: boolean
+  defaultTab: AutofillPanelTab
 }) {
   const t = useTranslate()
   const controller = useAutofillController(host, external)
   const state = useAutofillState(controller)
   const reconnect = useCallback(() => void controller?.connect(), [controller])
   const busy = state.status === 'connecting' || state.scanning
+  const [tab, setTab] = useState<AutofillPanelTab>(defaultTab)
+  const store = controller?.store ?? null
 
   return (
     <div className="ufa:flex ufa:min-h-0 ufa:flex-1 ufa:flex-col">
@@ -89,9 +114,71 @@ function PanelBody({
           <RotateCwIcon className={cn(busy && 'ufa:animate-spin')} />
         </Button>
       </header>
-      <div className="ufa:flex ufa:min-h-0 ufa:flex-1 ufa:flex-col ufa:gap-3 ufa:overflow-y-auto ufa:p-3">
-        <PanelContent state={state} host={host} onReconnect={reconnect} />
+      <div className="ufa:px-3 ufa:pt-2">
+        <ProfileSelector store={store} />
       </div>
+      <Tabs
+        value={tab}
+        onValueChange={(value) => setTab(value as AutofillPanelTab)}
+        className="ufa:min-h-0 ufa:flex-1 ufa:gap-0 ufa:pt-2"
+      >
+        <div className="ufa:px-3">
+          <TabsList aria-label={t('tabs.label')}>
+            <TabsTrigger value="page">{t('tabs.page')}</TabsTrigger>
+            <TabsTrigger value="answers">{t('tabs.answers')}</TabsTrigger>
+            <TabsTrigger value="profiles">{t('tabs.profiles')}</TabsTrigger>
+            <TabsTrigger value="data">{t('tabs.data')}</TabsTrigger>
+          </TabsList>
+        </div>
+        <TabsContent value="page" className={TAB_CONTENT}>
+          <PanelContent state={state} host={host} onReconnect={reconnect} />
+        </TabsContent>
+        <TabsContent value="answers" className={TAB_CONTENT}>
+          <StoreGate store={store}>
+            {(ready) => (
+              <>
+                <AnswerLibrary store={ready} />
+                <CustomFieldsManager
+                  store={ready}
+                  className="ufa:border-t ufa:border-border ufa:pt-3"
+                />
+              </>
+            )}
+          </StoreGate>
+        </TabsContent>
+        <TabsContent value="profiles" className={TAB_CONTENT}>
+          <StoreGate store={store}>{(ready) => <ProfileManager store={ready} />}</StoreGate>
+        </TabsContent>
+        <TabsContent value="data" className={TAB_CONTENT}>
+          <StoreGate store={store}>{(ready) => <DataManager store={ready} />}</StoreGate>
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+}
+
+/** Shows saved-data views once the store has loaded, and explains when it cannot. */
+function StoreGate({
+  store,
+  children,
+}: {
+  store: AutofillStore | null
+  children: (store: AutofillStore) => ReactNode
+}) {
+  const t = useTranslate()
+  const snapshot = useStoreSnapshot(store)
+  if (store && snapshot.status === 'ready') return children(store)
+  if (snapshot.status === 'error')
+    return (
+      <ErrorState
+        message={snapshot.error?.message || t('store.unavailable')}
+        onRetry={snapshot.error?.reason === 'newer-schema' ? undefined : () => void store?.reload()}
+      />
+    )
+  return (
+    <div className="ufa:flex ufa:items-center ufa:justify-center ufa:gap-2 ufa:py-8 ufa:text-sm ufa:text-muted-foreground">
+      <Spinner label={t('store.loading')} />
+      <span aria-hidden="true">{t('store.loading')}</span>
     </div>
   )
 }

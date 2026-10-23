@@ -5,8 +5,8 @@ dependencies. React 18.2+ or 19 is a peer dependency, only needed for `/react`.
 
 | Import                                           | Contents                                                        |
 | ------------------------------------------------ | --------------------------------------------------------------- |
-| `@universal-form-autofill/sdk`                   | Headless controller, field scanner, plugin registry, storage    |
-| `@universal-form-autofill/sdk/react`             | `AutofillPanel`, `AutofillRoot`, theming, hooks                 |
+| `@universal-form-autofill/sdk`                   | Headless controller, field scanner, plugins, store and adapters |
+| `@universal-form-autofill/sdk/react`             | `AutofillPanel`, data views, `AutofillRoot`, theming, hooks     |
 | `@universal-form-autofill/sdk/extension`         | `createExtensionAutofillHost` for side panels and popups        |
 | `@universal-form-autofill/sdk/content`           | The page runtime, for hosts that ship their own content script  |
 | `@universal-form-autofill/sdk/style.css`         | Scoped styles (every class is `ufa:`-prefixed, no global rules) |
@@ -40,6 +40,30 @@ dependencies. React 18.2+ or 19 is a peer dependency, only needed for `/react`.
 
 `cssVariableTheme()` reads shadcn-style variables (`--primary`, `--background`, …) from the host and
 falls back to the built-in palette for any that are missing.
+
+## Profiles and saved answers
+
+The panel includes Answers, Profiles and Data tabs and a profile selector. To manage the same data on
+another page, such as a settings screen, render the views with the host's shared store:
+
+```tsx
+import { AnswerLibrary, AutofillRoot, ProfileManager } from '@universal-form-autofill/sdk/react'
+
+const store = host.getStore()
+
+export function AutofillSettings() {
+  return (
+    <AutofillRoot>
+      <ProfileManager store={store} />
+      <AnswerLibrary store={store} />
+    </AutofillRoot>
+  )
+}
+```
+
+`DataManager` (export, import, delete all), `CustomFieldsManager` and `ProfileSelector` work the same
+way. Without the extension bridge, build a store directly:
+`createAutofillStore({ adapter: createIndexedDbStorage() })`.
 
 ## Permissions
 

@@ -1,5 +1,16 @@
-export { AutofillPanel, type AutofillPanelProps } from './components/autofill-panel'
+export {
+  AutofillPanel,
+  type AutofillPanelProps,
+  type AutofillPanelTab,
+} from './components/autofill-panel'
 export { AutofillRoot, type AutofillRootProps } from './components/autofill-root'
+export { AnswerEditor, type AnswerEditorProps } from './components/data/answer-editor'
+export { AnswerLibrary, type AnswerLibraryProps } from './components/data/answer-library'
+export { CustomFieldsManager, type CustomFieldsManagerProps } from './components/data/custom-fields'
+export { DataManager, type DataManagerProps } from './components/data/data-manager'
+export { ProfileDetailsDialog } from './components/data/profile-details'
+export { ProfileManager, type ProfileManagerProps } from './components/data/profile-manager'
+export { ProfileSelector, type ProfileSelectorProps } from './components/data/profile-selector'
 export { FieldList, type FieldListProps } from './components/field-list'
 export { ConnectionBadge, PortalStatus } from './components/portal-status'
 export {
@@ -68,6 +79,7 @@ export {
 export { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 
 export { useAutofillController, useAutofillState } from './hooks/use-autofill'
+export { useAction, useStoreSnapshot, type ActionState } from './hooks/use-store'
 export {
   defaultMessages,
   formatMessage,

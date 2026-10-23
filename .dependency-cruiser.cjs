@@ -22,7 +22,7 @@ const ALLOWED = {
     'portal-adapters',
   ],
   'extension-bridge': ['core', 'autofill-sdk', 'storage'],
-  ui: ['core', 'autofill-sdk'],
+  ui: ['core', 'autofill-sdk', 'storage'],
   'public-sdk': ['core', 'field-detection', 'autofill-sdk', 'ui', 'extension-bridge', 'storage'],
 }
 
