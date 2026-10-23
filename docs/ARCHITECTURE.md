@@ -15,6 +15,7 @@ knowledge lives in adapters, and field meaning comes from a semantic catalog tha
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `packages/core`             | Domain types and their Zod schemas, error codes, events, the plugin registry, safety classification, semantic catalog, redacting logger     |
 | `packages/field-detection`  | DOM scanner: detector plugins, label resolution, section context, visibility, stable field ids, mutation observer (see FIELD_DETECTION.md)  |
+| `packages/matching-engine`  | Field classification, the ordered matching strategies, confidence, option and value conversion (see Matching below)                         |
 | `packages/storage`          | The profiles-and-answers store, migrations, import/export, and adapters: memory, `chrome.storage`, IndexedDB, host-provided (DATA_MODEL.md) |
 | `packages/autofill-sdk`     | Headless controller (`createAutofill`), the page runtime, the DOM page driver and the `ufa/v1` message protocol                             |
 | `packages/extension-bridge` | Extension-page host: resolves the target tab, injects the runtime, proxies the page driver over `chrome.runtime` messaging                  |
@@ -22,8 +23,8 @@ knowledge lives in adapters, and field meaning comes from a semantic catalog tha
 | `packages/public-sdk`       | The published facade. Bundles everything above into `release/sdk`                                                                           |
 | `apps/chrome-extension`     | The standalone MV3 extension                                                                                                                |
 
-Later phases add `matching-engine`, `form-actions`, `learning-engine`, `synthetic-data` and
-`portal-adapters` packages, plus `apps/demo-host-extension`, which may only import the public package.
+Later phases add `form-actions`, `learning-engine`, `synthetic-data` and `portal-adapters`
+packages, plus `apps/demo-host-extension`, which may only import the public package.
 
 ### Dependency direction
 
@@ -34,9 +35,11 @@ never import each other, and there are no cycles.
 flowchart BT
   core
   detection[field-detection] --> core
+  matching[matching-engine] --> core
   storage --> core
   autofillSdk[autofill-sdk] --> core
   autofillSdk --> detection
+  autofillSdk --> matching
   autofillSdk --> storage
   bridge[extension-bridge] --> autofillSdk
   bridge --> storage
@@ -98,7 +101,8 @@ elements by session id and check the fingerprint first.
 ### Controller and state
 
 `createAutofill({ driver, storage })` returns an `AutofillController`: a small store
-(`idle → connecting → ready | error`, then `destroyed`, plus `fields`, `scanning` and `scannedAt`), a
+(`idle → connecting → ready | error`, then `destroyed`, plus `fields`, `matches`, `scanning` and
+`scannedAt`), a
 typed event bus, `connect()`, which connects and scans and may be called repeatedly (concurrent calls
 share one attempt), and `scan()`. Page updates replace the fields of the frame that sent them; a
 frame's report that arrives during a scan wins over the scan's older snapshot of that frame. React binds through
@@ -109,6 +113,13 @@ across controllers; otherwise the controller creates one over `storage` and disp
 `destroy()`. Store changes are re-emitted on the event bus as `data:changed` (per collection) and
 `profile:changed`. The panel shows the store in its Answers, Profiles and Data tabs, with the profile
 selector above them, so saved data stays manageable on pages that cannot be read.
+
+The controller keeps the fields exactly as the driver reported them and publishes them classified
+(with `semanticKey`, `semanticConfidence` and `semanticReason`), together with `matches`: one
+`MatchResult` per field id. Both are recomputed when fields change and when the answers, custom
+fields, mappings, active profile or thresholds change, and each recomputation emits
+`match:complete` with the count per state. Pass `registry` to add classifiers and matching
+strategies; the built-in ones always run. Matching never changes the page.
 
 `AutofillHost` is what a UI needs from its environment: `createController()` plus an optional
 `requestPageAccess()` that must be called from a user gesture. `createExtensionAutofillHost` builds one
@@ -128,6 +139,85 @@ which is also what the extension's options page uses.
   `confirm`, which beats `fill`.
 - Plugins are code supplied by the host at build time. Saved values, imported configuration and page
   content can only reference registered ids; they can never introduce executable code.
+
+## Matching
+
+`packages/matching-engine` decides which saved answer belongs in which field. It runs beside the
+controller, never in the page, and uses no network service or language model. Every decision comes
+with a sentence explaining it.
+
+### Classification
+
+Each field first gets a semantic key (`email`, `noticePeriod`, `custom:office`, …). The catalog
+classifier tries these rules in order and stops at the first that applies:
+
+| Rule                                                     | Confidence |
+| -------------------------------------------------------- | ---------- |
+| `autocomplete` token (`given-name`, `email`, …)          | 0.98       |
+| Normalized label equals exactly one key's label or alias | 0.95       |
+| Field `name` or `id`, split into words                   | 0.88       |
+| Placeholder equals a label or alias                      | 0.90       |
+| Label contains a known phrase (two or more words)        | 0.75       |
+| Label contains a known single word                       | 0.65       |
+| `type="email"` or `type="tel"`                           | 0.85       |
+| Label closely resembles one key and clearly no other     | up to 0.75 |
+
+Normalization makes "First name \*", "Candidate First Name" and "Enter your first name" the same
+label. Vague words ("name", "first", "state", "date") never count when a label merely contains them,
+and single checkboxes are not classified from contained phrases at all. The user's custom fields are
+classified by the same rules, and registry classifiers run alongside. The most confident result wins.
+A key a portal adapter already set with higher confidence is kept. Fields about someone else (an
+emergency contact, referee, next of kin, spouse, parent, guardian or manager) never receive
+personal, contact or address keys.
+
+### Strategies
+
+The strategies run in this order. Each saved answer is credited to the first strategy that finds it:
+
+| Order | Strategy         | Score                                                                                                                             |
+| ----- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| 10    | Explicit mapping | 1.0: the user linked this field (`normalized label\|type`) to an answer on this site                                              |
+| 20    | Semantic key     | 0.5 + 0.5 × the field's classification confidence                                                                                 |
+| 30    | Exact label      | 0.95                                                                                                                              |
+| 40    | Alias            | 0.92                                                                                                                              |
+| 50    | Context          | 0.9 when section or form title plus label equals the answer's label; 0.8 when they cover its words, at least one from the section |
+| 60    | Fuzzy            | similarity × 0.9 for similarity ≥ 0.6, capped at 0.85                                                                             |
+| 70    | Suggestion       | 0.35 to 0.6 from shared distinctive words                                                                                         |
+
+Registry matchers join the list by their `order`. Then, for each candidate:
+
+1. **Context.** The answer's own rules (sites, section keywords, form keywords, application types)
+   and control types must allow this field, except for explicit mappings. Each matched rule adds
+   0.02, up to 0.06, never past a strategy's cap. The user's personal answers are never offered for
+   fields about someone else.
+2. **Value conversion.** `toFieldValue` expresses the answer for this control or explains why it
+   cannot. It validates formats (email, phone, URL, number, date, month, week, time) and
+   `maxLength`, and matches options against the control's real options: by value, by label, by yes/no
+   meaning, by numeric range ("4" picks "3-5 years"), or by containment when exactly one option
+   fits. Placeholder options are never chosen. The conversion's score multiplies the confidence:
+   1 for exact, 0.97 for yes/no, 0.95 for a range, 0.85 for containment, and 0.9 for free text in a
+   combobox whose options do not include it.
+3. **Confidence level.** High is 0.90 or more, medium 0.70 or more, and low is below 0.70. The
+   thresholds come from settings. Fuzzy, suggestion and contained-phrase matches stay below the
+   default high threshold: resemblance alone never proves two labels mean the same thing.
+
+Candidates are ranked by level, strategy order, score, context specificity, preferred answer,
+profile answer before global answer, usage, recency and finally id. The result's `state` is:
+
+| State          | When                                                                                            |
+| -------------- | ----------------------------------------------------------------------------------------------- |
+| `matched`      | The best candidate is high confidence                                                           |
+| `suggested`    | The best candidate is medium or low confidence                                                  |
+| `ambiguous`    | The top two cannot be told apart and offer different values, or the answer fits several options |
+| `incompatible` | A saved answer was found but cannot be expressed for this control                               |
+| `missing`      | No saved answer fits                                                                            |
+| `skipped`      | Protected or read-only field                                                                    |
+| `unsupported`  | The control type is not supported                                                               |
+
+Results are deterministic: the same fields, answers and settings give the same results whatever the
+order of the saved answers. Lookups use an index built once per answer list. Fuzzy matching compares
+every answer when there are at most 200 and only answers sharing a word otherwise. Phase 5 decides
+what may actually be filled; matching only proposes.
 
 ## Safety
 

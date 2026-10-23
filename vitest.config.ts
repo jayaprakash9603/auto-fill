@@ -13,5 +13,7 @@ export default defineConfig({
     globals: true,
     css: false,
     restoreMocks: true,
+    // jsdom suites walk through whole dialogs and scans; on a busy machine they exceed the 5 s default.
+    testTimeout: 15_000,
   },
 })

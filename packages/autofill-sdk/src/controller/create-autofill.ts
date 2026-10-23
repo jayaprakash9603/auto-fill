@@ -4,9 +4,17 @@ import {
   silentLogger,
   toAutofillError,
   type FieldDescriptor,
+  type MatchResult,
   type PageInfo,
 } from '@ufa/core'
-import { createAutofillStore } from '@ufa/storage'
+import {
+  BUILTIN_STRATEGIES,
+  catalogClassifier,
+  classifyFields,
+  createCustomFieldClassifier,
+  matchFields,
+} from '@ufa/matching-engine'
+import { createAutofillStore, type StoreSnapshot } from '@ufa/storage'
 
 import { createStore } from './store'
 import type { AutofillConfiguration, AutofillController, AutofillState } from './types'
@@ -16,12 +24,30 @@ const INITIAL_STATE: AutofillState = {
   page: null,
   error: null,
   fields: [],
+  matches: {},
   scanning: false,
   scannedAt: null,
 }
 
 function compareFields(a: FieldDescriptor, b: FieldDescriptor): number {
   return (a.frameId ?? 0) - (b.frameId ?? 0) || a.order - b.order
+}
+
+/** The parts of the saved data that classification and matching read. */
+const matchInputs = (snapshot: StoreSnapshot) => [
+  snapshot.status,
+  snapshot.answers,
+  snapshot.customFields,
+  snapshot.mappings,
+  snapshot.activeProfile?.id ?? null,
+  snapshot.settings.thresholds,
+]
+
+function countStates(matches: Record<string, MatchResult>): Record<string, number> {
+  const counts: Record<string, number> = {}
+  for (const result of Object.values(matches))
+    counts[result.state] = (counts[result.state] ?? 0) + 1
+  return counts
 }
 
 /**
@@ -47,7 +73,69 @@ export function createAutofill(config: AutofillConfiguration): AutofillControlle
   let pendingScan: Promise<FieldDescriptor[]> | null = null
   /** Frames that reported their fields while a scan was in flight; those reports are newer. */
   let framesUpdatedDuringScan: Set<number | null> | null = null
+  /** Fields as the driver reported them, before classification. */
+  let detected: FieldDescriptor[] = []
+  let lastInputs: unknown[] = []
   let destroyed = false
+
+  const onPluginError = (pluginId: string, error: unknown) =>
+    logger.warn('plugin failed', { pluginId, message: toAutofillError(error).message })
+
+  /** Classifies the detected fields and matches them against the saved answers. */
+  const analyze = (
+    fields: readonly FieldDescriptor[],
+    page: PageInfo | null,
+  ): Pick<AutofillState, 'fields' | 'matches'> => {
+    const snapshot = data.getSnapshot()
+    lastInputs = matchInputs(snapshot)
+    const classified = classifyFields(fields, {
+      classifiers: [
+        ...(config.registry?.list('classifier') ?? []),
+        createCustomFieldClassifier(snapshot.customFields),
+        catalogClassifier,
+      ],
+      onPluginError,
+    })
+    if (snapshot.status !== 'ready' || classified.length === 0)
+      return { fields: classified, matches: {} }
+    const results = matchFields(
+      classified,
+      {
+        answers: snapshot.answers,
+        mappings: snapshot.mappings,
+        customFields: snapshot.customFields,
+        activeProfileId: snapshot.activeProfile?.id ?? null,
+        site: page?.hostname ?? '',
+        pageTitle: page?.title ?? null,
+        thresholds: snapshot.settings.thresholds,
+      },
+      {
+        strategies: [...BUILTIN_STRATEGIES, ...(config.registry?.list('matcher') ?? [])],
+        onPluginError,
+      },
+    )
+    return {
+      fields: classified,
+      matches: Object.fromEntries(results.map((result) => [result.fieldId, result])),
+    }
+  }
+
+  /** Publishes new detected fields (or the current ones against changed data). */
+  const publish = (fields: FieldDescriptor[], extra: Partial<AutofillState> = {}) => {
+    detected = fields
+    const page = extra.page !== undefined ? extra.page : store.getState().page
+    const analyzed = analyze(fields, page)
+    store.setState({ ...extra, ...analyzed })
+    if (fields.length > 0)
+      events.emit({ type: 'match:complete', counts: countStates(analyzed.matches) })
+  }
+
+  const stopRematch = data.subscribe(() => {
+    if (destroyed || detected.length === 0) return
+    const inputs = matchInputs(data.getSnapshot())
+    if (inputs.every((value, index) => value === lastInputs[index])) return
+    publish(detected)
+  })
 
   const destroyedError = () =>
     new AutofillError('DESTROYED', 'This autofill controller was destroyed.')
@@ -56,10 +144,12 @@ export function createAutofill(config: AutofillConfiguration): AutofillControlle
     const failure = toAutofillError(error)
     logger.warn(`${operation} failed`, { code: failure.code })
     const { site, reason } = failure.details ?? {}
+    detected = []
     store.setState({
       status: 'error',
       page: null,
       fields: [],
+      matches: {},
       scanning: false,
       error: {
         code: failure.code,
@@ -82,19 +172,19 @@ export function createAutofill(config: AutofillConfiguration): AutofillControlle
       .scan()
       .then((result) => {
         if (destroyed || store.getState().status !== 'ready') return []
-        const newer = store.getState().fields.filter((field) => updatedFrames.has(field.frameId))
+        const newer = detected.filter((field) => updatedFrames.has(field.frameId))
         const fields = [
           ...result.fields.filter((field) => !updatedFrames.has(field.frameId)),
           ...newer,
         ].sort(compareFields)
-        store.setState({ fields, page: result.page, scanning: false, scannedAt: result.scannedAt })
+        publish(fields, { page: result.page, scanning: false, scannedAt: result.scannedAt })
         events.emit({
           type: 'scan:complete',
           page: result.page,
           fieldCount: fields.length,
           durationMs: Math.max(0, now() - startedAt),
         })
-        return fields
+        return store.getState().fields
       })
       .catch((error: unknown) => {
         if (!destroyed) fail(error, 'scan')
@@ -148,20 +238,22 @@ export function createAutofill(config: AutofillConfiguration): AutofillControlle
         if (store.getState().status !== 'ready') return
         framesUpdatedDuringScan?.add(event.frameId)
         const fields = [
-          ...store.getState().fields.filter((field) => field.frameId !== event.frameId),
+          ...detected.filter((field) => field.frameId !== event.frameId),
           ...event.fields,
         ].sort(compareFields)
-        store.setState({ fields, scannedAt: now() })
+        publish(fields, { scannedAt: now() })
         events.emit({ type: 'fields:changed', fieldCount: fields.length })
         break
       }
       case 'navigated':
-        store.setState({ fields: [], scannedAt: null })
+        detected = []
+        store.setState({ fields: [], matches: {}, scannedAt: null })
         events.emit({ type: 'page:changed', url: event.url })
         void connect()
         break
       case 'disconnected':
-        store.setState({ status: 'idle', page: null, fields: [], scanning: false })
+        detected = []
+        store.setState({ status: 'idle', page: null, fields: [], matches: {}, scanning: false })
         break
       case 'field-input':
         break
@@ -180,6 +272,7 @@ export function createAutofill(config: AutofillConfiguration): AutofillControlle
       destroyed = true
       stopDriverEvents()
       stopDataEvents()
+      stopRematch()
       if (ownsData) data.dispose()
       events.clear()
       store.setState({ status: 'destroyed', scanning: false })

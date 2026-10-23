@@ -1,4 +1,4 @@
-import type { AnswerRecord, FieldMapping } from '../domain/answers'
+import type { AnswerRecord, CustomFieldDefinition, FieldMapping } from '../domain/answers'
 import type { FieldDescriptor, FieldOption, FieldType, FieldValue } from '../domain/field'
 import type { FillOperationInput } from '../domain/page'
 import type { FillResult, MatchResult, SyntheticGenerationResult } from '../domain/results'
@@ -70,6 +70,9 @@ export interface MatchContext {
   activeProfileId: string | null
   mappings: readonly FieldMapping[]
   thresholds: ConfidenceThresholds
+  customFields?: readonly CustomFieldDefinition[]
+  /** Kind of form being filled, e.g. "job-application", compared with answers' `applicationTypes`. */
+  applicationType?: string | null
 }
 
 export interface StrategyCandidate {

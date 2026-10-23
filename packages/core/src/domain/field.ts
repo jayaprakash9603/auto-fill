@@ -142,6 +142,8 @@ export interface FieldDescriptor {
   labelSource: LabelSource
   semanticKey: string | null
   semanticConfidence: number
+  /** Why the key was chosen, e.g. `autocomplete="email"`. Null when unclassified. */
+  semanticReason: string | null
   placeholder: string | null
   name: string | null
   htmlId: string | null
@@ -180,6 +182,7 @@ export const fieldDescriptorSchema = z.object({
   labelSource: labelSourceSchema,
   semanticKey: z.string().max(120).nullable(),
   semanticConfidence: z.number().min(0).max(1),
+  semanticReason: z.string().max(300).nullable().default(null),
   placeholder: z.string().max(1_000).nullable(),
   name: z.string().max(500).nullable(),
   htmlId: z.string().max(500).nullable(),

@@ -65,6 +65,38 @@ export function AutofillSettings() {
 way. Without the extension bridge, build a store directly:
 `createAutofillStore({ adapter: createIndexedDbStorage() })`.
 
+## Matching
+
+`controller.getState().matches` holds one result per detected field: its state (`matched`,
+`suggested`, `ambiguous`, `incompatible`, `missing`, `skipped` or `unsupported`), the best answer
+with the value it would put in that control, a confidence score and level, and a sentence explaining
+why. The panel's Page tab shows the same information. To add matching rules, register them:
+
+```ts
+import { createAutofill, PluginRegistry, PLUGIN_API_VERSION } from '@universal-form-autofill/sdk'
+
+const registry = new PluginRegistry().registerMatcher({
+  id: 'acme.employee-id',
+  apiVersion: PLUGIN_API_VERSION,
+  order: 15,
+  match: (field, answers) =>
+    field.name === 'empId'
+      ? answers
+          .filter((answer) => answer.semanticKey === 'custom:employee-id')
+          .map((answer) => ({
+            answerId: answer.id,
+            score: 0.95,
+            explanation: 'Acme employee id field',
+          }))
+      : [],
+})
+
+const controller = createAutofill({ driver, storage, registry })
+```
+
+`matchFields`, `classifyFields` and `toFieldValue` are exported for hosts that match outside a
+controller.
+
 ## Permissions
 
 The host extension needs `scripting` and `storage`, plus either `activeTab` (access granted per click)

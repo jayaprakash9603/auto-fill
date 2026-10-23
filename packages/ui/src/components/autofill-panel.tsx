@@ -235,7 +235,7 @@ function PanelContent({
     return (
       <>
         <PortalStatus page={state.page} />
-        <FieldList fields={state.fields} scanning={state.scanning} />
+        <FieldList fields={state.fields} matches={state.matches} scanning={state.scanning} />
       </>
     )
   }

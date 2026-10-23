@@ -117,7 +117,7 @@ semantic key when there is one and the normalized label otherwise.
 - **Exact duplicate:** same group and same normalized value. Creating one returns the existing answer
   (`{ created: false }`) instead of saving a copy, unless `allowDuplicate` is passed.
 - **Conflict:** same group, different values, none marked preferred. The library reports conflicts so
-  the user can choose; matching (Phase 4) will ask rather than guess.
+  the user can choose. Matching reports such fields as `ambiguous` and proposes neither.
 - **Preferred:** at most one answer per group. Marking another one preferred clears the previous one.
 
 `findDuplicateAnswers` returns both lists. `answers.merge(keepId, ids)` folds duplicates into one

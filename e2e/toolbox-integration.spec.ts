@@ -53,7 +53,7 @@ test.describe('Browser Toolbox integration', () => {
     await expect(panel.getByText('2 frames')).toBeVisible()
     const fields = panel.getByRole('region', { name: 'Detected fields' })
     await expect(fields.getByText('8 fields')).toBeVisible()
-    await expect(fields.getByText('LinkedIn profile')).toBeVisible()
+    await expect(fields.getByText('LinkedIn profile', { exact: true })).toBeVisible()
     // Only the toolbox page title is visible; the panel heading is kept for screen readers.
     await expect(panel.getByRole('heading', { level: 2, name: 'Form Autofill' })).toHaveClass(
       /ufa:sr-only/,

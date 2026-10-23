@@ -8,6 +8,7 @@
     "src",
     "../core/src",
     "../field-detection/src",
+    "../matching-engine/src",
     "../storage/src",
     "../autofill-sdk/src",
     "../extension-bridge/src",

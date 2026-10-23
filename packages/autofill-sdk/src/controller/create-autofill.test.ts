@@ -1,7 +1,14 @@
-import type { AutofillEvent, PageDriver } from '@ufa/core'
+import {
+  PLUGIN_API_VERSION,
+  PluginRegistry,
+  type AutofillEvent,
+  type FieldDescriptor,
+  type PageDriver,
+} from '@ufa/core'
 import { createAutofillStore, createMemoryStorage } from '@ufa/storage'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { createDomPageDriver } from '../dom/dom-page-driver'
 import { createAutofill } from './create-autofill'
 
 function idleDriver(): PageDriver {
@@ -49,5 +56,133 @@ describe('controller data', () => {
     await expect(owning.store.profiles.create({ name: 'Gone' })).rejects.toMatchObject({
       code: 'DESTROYED',
     })
+  })
+})
+
+describe('controller matching', () => {
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  function renderForm() {
+    document.body.innerHTML = `
+      <form>
+        <label for="contact">Contact</label>
+        <input id="contact" type="email" autocomplete="email">
+        <label for="notice">Notice period</label>
+        <input id="notice" type="text">
+        <label for="colour">Favourite colour</label>
+        <input id="colour" type="text">
+        <label for="pw">Password</label>
+        <input id="pw" type="password">
+      </form>`
+  }
+
+  async function connected(registry?: PluginRegistry) {
+    renderForm()
+    const controller = createAutofill({
+      driver: createDomPageDriver({ observe: false }),
+      storage: createMemoryStorage(),
+      ...(registry ? { registry } : {}),
+    })
+    await controller.store.ready()
+    await controller.store.answers.create({
+      label: 'Email',
+      semanticKey: 'email',
+      value: { kind: 'text', text: 'person@example.com' },
+    })
+    await controller.store.answers.create({
+      label: 'Notice period',
+      value: { kind: 'text', text: '30 days' },
+    })
+    await controller.connect()
+    const byLabel = (label: string) => {
+      const field = controller.getState().fields.find((candidate) => candidate.label === label)
+      if (!field) throw new Error(`No field labelled ${label}`)
+      return { field, match: controller.getState().matches[field.id] }
+    }
+    return { controller, byLabel }
+  }
+
+  it('classifies detected fields and matches them against saved answers', async () => {
+    const { controller, byLabel } = await connected()
+
+    const contact = byLabel('Contact')
+    expect(contact.field).toMatchObject<Partial<FieldDescriptor>>({
+      semanticKey: 'email',
+      semanticReason: 'autocomplete="email"',
+    })
+    expect(contact.match).toMatchObject({
+      state: 'matched',
+      best: {
+        strategyId: 'ufa.semantic-key',
+        fillValue: { kind: 'text', text: 'person@example.com' },
+        confidence: { level: 'high' },
+      },
+    })
+    expect(byLabel('Notice period').match).toMatchObject({
+      state: 'matched',
+      best: { strategyId: 'ufa.exact-label' },
+    })
+    expect(byLabel('Favourite colour').match?.state).toBe('missing')
+    expect(byLabel('Password').match).toMatchObject({ state: 'skipped', best: null })
+    await controller.destroy()
+  })
+
+  it('rematches when saved answers change and reports the counts', async () => {
+    const { controller, byLabel } = await connected()
+    const counts: Record<string, number>[] = []
+    controller.on('match:complete', (event) => counts.push(event.counts))
+
+    await controller.store.answers.create({
+      label: 'Favourite colour',
+      value: { kind: 'text', text: 'Green' },
+    })
+    expect(byLabel('Favourite colour').match).toMatchObject({
+      state: 'matched',
+      best: { fillValue: { kind: 'text', text: 'Green' } },
+    })
+    expect(counts.at(-1)).toEqual({ matched: 3, skipped: 1 })
+    await controller.destroy()
+  })
+
+  it('reclassifies fields when the user adds a custom field', async () => {
+    const { controller, byLabel } = await connected()
+    const custom = await controller.store.customFields.create({ label: 'Favourite colour' })
+    expect(byLabel('Favourite colour').field).toMatchObject({
+      semanticKey: custom.key,
+      semanticReason: 'label "Favourite colour" (your field "Favourite colour")',
+    })
+    await controller.destroy()
+  })
+
+  it('runs matching strategies registered by the host', async () => {
+    const registry = new PluginRegistry().registerMatcher({
+      id: 'test.colour',
+      apiVersion: PLUGIN_API_VERSION,
+      order: 15,
+      match: (field, answers) =>
+        field.label === 'Favourite colour' && answers[0]
+          ? [{ answerId: answers[0].id, score: 0.8, explanation: 'Chosen by a host plugin' }]
+          : [],
+    })
+    const { controller, byLabel } = await connected(registry)
+    expect(byLabel('Favourite colour').match).toMatchObject({
+      state: 'suggested',
+      best: { strategyId: 'test.colour', explanation: 'Chosen by a host plugin' },
+    })
+    await controller.destroy()
+  })
+
+  it('clears matches when the page goes away', async () => {
+    const { controller } = await connected()
+    expect(Object.keys(controller.getState().matches)).toHaveLength(4)
+    await controller.destroy()
+    const driver = createDomPageDriver({ observe: false })
+    const fresh = createAutofill({ driver, storage: createMemoryStorage() })
+    await fresh.connect()
+    driver.emit({ type: 'disconnected', reason: 'test' })
+    expect(fresh.getState()).toMatchObject({ fields: [], matches: {} })
+    await fresh.destroy()
   })
 })

@@ -1,12 +1,43 @@
-import type { FieldDescriptor, LabelSource } from '@ufa/core'
+import {
+  semanticKeyLabel,
+  type FieldDescriptor,
+  type FieldValue,
+  type LabelSource,
+  type MatchResult,
+  type MatchState,
+} from '@ufa/core'
 import { AppWindowIcon, FormInputIcon, LockIcon, ShieldAlertIcon } from 'lucide-react'
 import { useId, useMemo } from 'react'
 
 import { useTranslate, type MessageKey, type Translate } from '../i18n/messages'
 import { cn } from '../lib/cn'
 import { EmptyState } from './states'
-import { Badge } from './ui/badge'
+import { Badge, type BadgeProps } from './ui/badge'
 import { Spinner } from './ui/misc'
+
+/** Match states with their own badge; skipped and unsupported fields already show why. */
+const STATE_BADGES: Partial<Record<MatchState, BadgeProps['variant']>> = {
+  matched: 'success',
+  suggested: 'info',
+  ambiguous: 'warning',
+  incompatible: 'warning',
+  missing: 'muted',
+}
+
+const REVIEW_STATES: ReadonlySet<MatchState> = new Set(['suggested', 'ambiguous', 'incompatible'])
+
+function describeFill(value: FieldValue, field: FieldDescriptor, t: Translate): string {
+  switch (value.kind) {
+    case 'text':
+      return value.text
+    case 'checked':
+      return value.checked ? t('match.checked') : t('match.unchecked')
+    case 'options':
+      return value.values
+        .map((wanted) => field.options.find((option) => option.value === wanted)?.label ?? wanted)
+        .join(', ')
+  }
+}
 
 /** Label sources worth surfacing: the label was inferred rather than declared by the page. */
 const INFERRED_SOURCES: Partial<Record<LabelSource, MessageKey>> = {
@@ -39,15 +70,40 @@ function groupFields(fields: readonly FieldDescriptor[], t: Translate): FieldGro
 
 export interface FieldListProps {
   fields: readonly FieldDescriptor[]
+  /** How each field matches the saved answers, by field id. */
+  matches?: Readonly<Record<string, MatchResult>>
   scanning?: boolean
   className?: string
 }
 
-/** Read-only overview of detected fields, grouped by section, with safety and support badges. */
-export function FieldList({ fields, scanning = false, className }: FieldListProps) {
+const NO_MATCHES: Readonly<Record<string, MatchResult>> = {}
+
+function summarize(matches: Readonly<Record<string, MatchResult>>) {
+  let ready = 0
+  let review = 0
+  let missing = 0
+  for (const result of Object.values(matches)) {
+    if (result.state === 'matched') ready += 1
+    else if (REVIEW_STATES.has(result.state)) review += 1
+    else if (result.state === 'missing') missing += 1
+  }
+  return { ready, review, missing, total: ready + review + missing }
+}
+
+/**
+ * Overview of detected fields, grouped by section: safety and support badges, what each field
+ * was recognized as, and the saved answer proposed for it with confidence and explanation.
+ */
+export function FieldList({
+  fields,
+  matches = NO_MATCHES,
+  scanning = false,
+  className,
+}: FieldListProps) {
   const t = useTranslate()
   const headingId = useId()
   const groups = useMemo(() => groupFields(fields, t), [fields, t])
+  const summary = useMemo(() => summarize(matches), [matches])
 
   return (
     <section
@@ -74,6 +130,12 @@ export function FieldList({ fields, scanning = false, className }: FieldListProp
         )}
       </div>
 
+      {summary.total > 0 ? (
+        <p data-slot="match-summary" className="ufa:text-xs ufa:text-muted-foreground">
+          {t('match.summary', summary)}
+        </p>
+      ) : null}
+
       {fields.length === 0 && !scanning ? (
         <EmptyState
           icon={<FormInputIcon />}
@@ -83,13 +145,19 @@ export function FieldList({ fields, scanning = false, className }: FieldListProp
       ) : null}
 
       {groups.map((group) => (
-        <FieldGroupSection key={group.key} group={group} />
+        <FieldGroupSection key={group.key} group={group} matches={matches} />
       ))}
     </section>
   )
 }
 
-function FieldGroupSection({ group }: { group: FieldGroup }) {
+function FieldGroupSection({
+  group,
+  matches,
+}: {
+  group: FieldGroup
+  matches: Readonly<Record<string, MatchResult>>
+}) {
   const t = useTranslate()
   const headingId = useId()
   return (
@@ -115,16 +183,19 @@ function FieldGroupSection({ group }: { group: FieldGroup }) {
       </div>
       <ul className="ufa:divide-y ufa:divide-border">
         {group.fields.map((field) => (
-          <FieldRow key={field.id} field={field} />
+          <FieldRow key={field.id} field={field} match={matches[field.id]} />
         ))}
       </ul>
     </div>
   )
 }
 
-function FieldRow({ field }: { field: FieldDescriptor }) {
+function FieldRow({ field, match }: { field: FieldDescriptor; match: MatchResult | undefined }) {
   const t = useTranslate()
   const inferred = INFERRED_SOURCES[field.labelSource]
+  const stateBadge = match ? STATE_BADGES[match.state] : undefined
+  const best = match?.best ?? null
+  const proposed = best?.fillValue ? describeFill(best.fillValue, field, t) : null
   const details = [
     t(`fieldType.${field.type}`),
     field.options.length > 0
@@ -139,6 +210,7 @@ function FieldRow({ field }: { field: FieldDescriptor }) {
     <li
       data-field-id={field.id}
       data-field-type={field.type}
+      data-match-state={match?.state}
       className="ufa:flex ufa:items-start ufa:gap-2 ufa:px-3 ufa:py-2"
     >
       <div className="ufa:min-w-0 ufa:flex-1">
@@ -156,8 +228,32 @@ function FieldRow({ field }: { field: FieldDescriptor }) {
           ) : null}
         </p>
         <p className="ufa:truncate ufa:text-xs ufa:text-muted-foreground">{details.join(' · ')}</p>
+        {field.semanticKey ? (
+          <p
+            className="ufa:truncate ufa:text-xs ufa:text-muted-foreground"
+            title={field.semanticReason ?? undefined}
+          >
+            {t('match.recognized', { key: semanticKeyLabel(field.semanticKey) })}
+          </p>
+        ) : null}
         {field.unsupportedReason ? (
           <p className="ufa:text-xs ufa:text-muted-foreground">{field.unsupportedReason}</p>
+        ) : null}
+        {best && proposed !== null ? (
+          <div data-slot="match-proposal" className="ufa:mt-1 ufa:flex ufa:flex-col ufa:gap-0.5">
+            <p className="ufa:flex ufa:min-w-0 ufa:items-baseline ufa:gap-1 ufa:text-xs">
+              <span className="ufa:sr-only">{`${t('match.proposed')}: `}</span>
+              <span className="ufa:truncate ufa:font-medium" title={proposed}>
+                {proposed}
+              </span>
+              <span className="ufa:shrink-0 ufa:text-muted-foreground">
+                {`· ${t(`match.level.${best.confidence.level}`)}`}
+              </span>
+            </p>
+            <p className="ufa:text-xs ufa:text-muted-foreground">{best.explanation}</p>
+          </div>
+        ) : match?.reason && stateBadge && match.state !== 'missing' ? (
+          <p className="ufa:mt-1 ufa:text-xs ufa:text-muted-foreground">{match.reason}</p>
         ) : null}
       </div>
       <div className="ufa:flex ufa:shrink-0 ufa:flex-wrap ufa:justify-end ufa:gap-1">
@@ -180,6 +276,9 @@ function FieldRow({ field }: { field: FieldDescriptor }) {
           <Badge variant="muted">{t('fields.unsupported')}</Badge>
         ) : null}
         {field.hasValue ? <Badge variant="info">{t('fields.hasValue')}</Badge> : null}
+        {match && stateBadge ? (
+          <Badge variant={stateBadge}>{t(`match.${match.state}` as MessageKey)}</Badge>
+        ) : null}
       </div>
     </li>
   )

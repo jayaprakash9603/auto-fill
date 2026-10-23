@@ -123,6 +123,9 @@ importers:
       '@ufa/field-detection':
         specifier: workspace:*
         version: link:../field-detection
+      '@ufa/matching-engine':
+        specifier: workspace:*
+        version: link:../matching-engine
       '@ufa/storage':
         specifier: workspace:*
         version: link:../storage
@@ -182,6 +185,16 @@ importers:
         specifier: ~6.0.3
         version: 6.0.3
 
+  packages/matching-engine:
+    dependencies:
+      '@ufa/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+
   packages/public-sdk:
     dependencies:
       '@ufa/autofill-sdk':
@@ -196,6 +209,9 @@ importers:
       '@ufa/field-detection':
         specifier: workspace:*
         version: link:../field-detection
+      '@ufa/matching-engine':
+        specifier: workspace:*
+        version: link:../matching-engine
       '@ufa/storage':
         specifier: workspace:*
         version: link:../storage

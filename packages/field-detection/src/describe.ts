@@ -173,6 +173,7 @@ export function describeControl(
       labelSource: label.source,
       semanticKey: null,
       semanticConfidence: 0,
+      semanticReason: null,
       placeholder,
       name,
       htmlId,

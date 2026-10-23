@@ -1,5 +1,5 @@
 import { createAutofill, type AutofillController, type AutofillHost } from '@ufa/autofill-sdk'
-import { AutofillError, type Logger, type StorageAdapter } from '@ufa/core'
+import { AutofillError, type Logger, type PluginRegistry, type StorageAdapter } from '@ufa/core'
 import {
   createAutofillStore,
   createStorageAreaAdapter,
@@ -20,6 +20,8 @@ export interface ExtensionAutofillHostOptions {
   /** Defaults to `chrome.storage.local`. Pass any adapter to use IndexedDB or host storage instead. */
   storage?: StorageAdapter | StorageAreaLike
   tabId?: ExtensionTabDriverOptions['tabId']
+  /** Extra classifiers and matching strategies for every controller. */
+  registry?: PluginRegistry
   logger?: Logger
 }
 
@@ -87,6 +89,7 @@ export function createExtensionAutofillHost(
         driver,
         storage: getStorage(),
         store: getStore(),
+        ...(options.registry ? { registry: options.registry } : {}),
         logger: options.logger,
       })
     },

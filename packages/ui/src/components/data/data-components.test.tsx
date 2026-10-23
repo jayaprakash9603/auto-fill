@@ -10,10 +10,13 @@ import { DataManager } from './data-manager'
 import { ProfileManager } from './profile-manager'
 import { ProfileSelector } from './profile-selector'
 
-// These tests walk through whole dialogs; under a full parallel run jsdom can exceed the 5 s default.
-vi.setConfig({ testTimeout: 15_000 })
-
 const setupUser = () => userEvent.setup({ delay: null })
+
+/** One input event instead of one per character, which keeps these flows fast under load. */
+async function enter(user: ReturnType<typeof setupUser>, element: HTMLElement, value: string) {
+  await user.click(element)
+  await user.paste(value)
+}
 
 async function setup() {
   const storage = createMemoryStorage()
@@ -57,7 +60,7 @@ describe('ProfileManager', () => {
 
     await user.click(screen.getByRole('button', { name: 'New profile' }))
     const dialog = await screen.findByRole('dialog', { name: 'New profile' })
-    await user.type(within(dialog).getByLabelText('Name'), 'QA roles')
+    await enter(user, within(dialog).getByLabelText('Name'), 'QA roles')
     await user.selectOptions(within(dialog).getByLabelText('Start from'), 'software-testing')
     await user.click(within(dialog).getByRole('button', { name: 'Create profile' }))
 
@@ -82,7 +85,7 @@ describe('ProfileManager', () => {
 
     await user.click(screen.getByRole('button', { name: 'New profile' }))
     const dialog = await screen.findByRole('dialog')
-    await user.type(within(dialog).getByLabelText('Name'), 'general')
+    await enter(user, within(dialog).getByLabelText('Name'), 'general')
     await user.click(within(dialog).getByRole('button', { name: 'Create profile' }))
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('already exists')
@@ -123,8 +126,8 @@ describe('ProfileManager', () => {
 
     await user.click(screen.getByRole('button', { name: 'Edit details of General' }))
     let dialog = await screen.findByRole('dialog', { name: 'Details: General' })
-    await user.type(within(dialog).getByLabelText('First name'), 'Alex')
-    await user.type(within(dialog).getByLabelText('Current designation'), 'Engineer')
+    await enter(user, within(dialog).getByLabelText('First name'), 'Alex')
+    await enter(user, within(dialog).getByLabelText('Current designation'), 'Engineer')
     await user.click(within(dialog).getByRole('button', { name: 'Save details' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 
@@ -160,8 +163,8 @@ describe('AnswerLibrary', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add answer' }))
     let dialog = await screen.findByRole('dialog', { name: 'Add answer' })
-    await user.type(within(dialog).getByLabelText('Question or label'), 'Notice period')
-    await user.type(within(dialog).getByLabelText('Answer'), 'Two weeks')
+    await enter(user, within(dialog).getByLabelText('Question or label'), 'Notice period')
+    await enter(user, within(dialog).getByLabelText('Answer'), 'Two weeks')
     await user.click(within(dialog).getByRole('button', { name: 'Save answer' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 
@@ -173,11 +176,11 @@ describe('AnswerLibrary', () => {
     dialog = await screen.findByRole('dialog', { name: 'Edit answer' })
     const value = within(dialog).getByLabelText('Answer')
     await user.clear(value)
-    await user.type(value, 'One month')
+    await enter(user, value, 'One month')
     await user.click(within(dialog).getByRole('button', { name: 'Save answer' }))
     await waitFor(() => expect(within(list).getByText('One month')).toBeInTheDocument())
 
-    await user.type(screen.getByRole('searchbox', { name: 'Search answers' }), 'notice')
+    await enter(user, screen.getByRole('searchbox', { name: 'Search answers' }), 'notice')
     expect(within(list).queryByText('Pronouns')).not.toBeInTheDocument()
     expect(within(list).getByText('Notice period')).toBeInTheDocument()
 
@@ -197,8 +200,8 @@ describe('AnswerLibrary', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add answer' }))
     const dialog = await screen.findByRole('dialog')
-    await user.type(within(dialog).getByLabelText('Question or label'), 'Password')
-    await user.type(within(dialog).getByLabelText('Answer'), 'hunter2')
+    await enter(user, within(dialog).getByLabelText('Question or label'), 'Password')
+    await enter(user, within(dialog).getByLabelText('Answer'), 'hunter2')
     await user.click(within(dialog).getByRole('button', { name: 'Save answer' }))
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('never saved')

@@ -28,6 +28,25 @@ export {
 } from '@ufa/field-detection'
 
 export {
+  BUILTIN_STRATEGIES,
+  catalogClassifier,
+  classifyField,
+  classifyFields,
+  confidenceLevel,
+  createCustomFieldClassifier,
+  fieldSignature,
+  matchField,
+  matchFields,
+  matchOption,
+  toFieldValue,
+  type ClassifyOptions,
+  type Conversion,
+  type MatchEngineOptions,
+  type MatchInput,
+  type OptionMatch,
+} from '@ufa/matching-engine'
+
+export {
   AUTOFILL_ERROR_CODES,
   AUTOFILL_MODES,
   AutofillError,
@@ -86,9 +105,15 @@ export {
   type Logger,
   type LoggerOptions,
   type LogLevel,
+  type ClassificationInput,
   type MatchCandidate,
+  type MatchConfidence,
+  type MatchContext,
   type MatchingStrategy,
   type MatchResult,
+  type MatchState,
+  type SemanticClassification,
+  type StrategyCandidate,
   type PageDriver,
   type PageEvent,
   type PageInfo,

@@ -6,6 +6,7 @@ const DETACHED_STATE: AutofillState = {
   page: null,
   error: null,
   fields: [],
+  matches: {},
   scanning: false,
   scannedAt: null,
 }

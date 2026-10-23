@@ -51,18 +51,20 @@ test.describe('field detection', () => {
     await page.goto(forms.url('multi-step.html'))
     const panel = await openExtensionPage('src/sidepanel/index.html', page)
     const list = panel.getByRole('region', { name: 'Detected fields' })
-    await expect(list.getByText('Full name')).toBeVisible()
-    await expect(list.getByText('Referrer name')).toHaveCount(0)
+    // By the label's title: rows also say what the field was recognized as ("Recognized as Full name").
+    const label = (text: string) => list.locator(`li p[title="${text}"]`)
+    await expect(label('Full name')).toBeVisible()
+    await expect(label('Referrer name')).toHaveCount(0)
 
     await page.locator('#has-referral').check()
-    await expect(list.getByText('Referrer name')).toBeVisible()
+    await expect(label('Referrer name')).toBeVisible()
 
     await page.locator('#to-step-2').click()
-    await expect(list.getByText('Years of experience')).toBeVisible()
-    await expect(list.getByText('Full name')).toHaveCount(0)
+    await expect(label('Years of experience')).toBeVisible()
+    await expect(label('Full name')).toHaveCount(0)
 
     await page.locator('#to-step-3').click()
-    await expect(list.getByText('Why do you want to join?')).toBeVisible()
+    await expect(label('Why do you want to join?')).toBeVisible()
     await expect(list.getByText('1 field')).toBeVisible()
   })
 

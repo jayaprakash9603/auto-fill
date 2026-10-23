@@ -6,7 +6,7 @@ import {
   type PageEvent,
   type PageInfo,
 } from '@ufa/core'
-import { createMemoryStorage } from '@ufa/storage'
+import { createAutofillStore, createMemoryStorage } from '@ufa/storage'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { StrictMode } from 'react'
@@ -38,6 +38,7 @@ function field(overrides: Partial<FieldDescriptor> & Pick<FieldDescriptor, 'id' 
     labelSource: 'label-for',
     semanticKey: null,
     semanticConfidence: 0,
+    semanticReason: null,
     placeholder: null,
     name: null,
     htmlId: null,
@@ -296,6 +297,53 @@ describe('AutofillPanel', () => {
 
     await user.click(screen.getByRole('tab', { name: 'Data' }))
     expect(await screen.findByRole('button', { name: 'Export data' })).toBeInTheDocument()
+  })
+
+  it('shows what each field was recognized as and the proposed answer with its reason', async () => {
+    const driver = fakeDriver(async () => PAGE)
+    const storage = createMemoryStorage()
+    const store = createAutofillStore({ adapter: storage })
+    await store.ready()
+    await store.answers.create({
+      label: 'First name',
+      semanticKey: 'firstName',
+      value: { kind: 'text', text: 'Ada' },
+    })
+    await store.answers.create({
+      label: 'Email',
+      semanticKey: 'email',
+      value: { kind: 'text', text: 'ada@example.com' },
+    })
+    const host: AutofillHost = {
+      createController: () => createAutofill({ driver, storage, store }),
+    }
+    const { container } = render(<AutofillPanel host={host} />)
+    const list = await screen.findByRole('region', { name: 'Detected fields' })
+    expect(
+      await within(list).findByText('2 ready · 0 to review · 2 without an answer'),
+    ).toBeInTheDocument()
+
+    const firstName = container.querySelector<HTMLElement>('[data-field-id="a"]')!
+    expect(firstName).toHaveAttribute('data-match-state', 'matched')
+    expect(within(firstName).getByText('Recognized as First name')).toHaveAttribute(
+      'title',
+      'label "First name"',
+    )
+    expect(within(firstName).getByText('Ada')).toBeInTheDocument()
+    expect(within(firstName).getByText('· high confidence')).toBeInTheDocument()
+    expect(
+      within(firstName).getByText('Recognized as First name from its label "First name"'),
+    ).toBeInTheDocument()
+    expect(within(firstName).getByText('Ready')).toBeInTheDocument()
+
+    const linkedIn = container.querySelector<HTMLElement>('[data-field-id="f"]')!
+    expect(linkedIn).toHaveAttribute('data-match-state', 'missing')
+    expect(within(linkedIn).getByText('No answer')).toBeInTheDocument()
+
+    const password = container.querySelector<HTMLElement>('[data-field-id="c"]')!
+    expect(password).toHaveAttribute('data-match-state', 'skipped')
+    expect(within(password).queryByText('Recognized as', { exact: false })).toBeNull()
+    store.dispose()
   })
 
   it('opens on the requested tab', async () => {

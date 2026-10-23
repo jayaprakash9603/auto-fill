@@ -4,8 +4,10 @@ import type {
   AutofillEventType,
   FieldDescriptor,
   Logger,
+  MatchResult,
   PageDriver,
   PageInfo,
+  PluginRegistry,
   StorageAdapter,
 } from '@ufa/core'
 import type { AutofillStore } from '@ufa/storage'
@@ -25,8 +27,13 @@ export interface AutofillState {
   status: ConnectionStatus
   page: PageInfo | null
   error: AutofillStateError | null
-  /** Detected fields of every reachable frame, ordered by frame and then document order. */
+  /**
+   * Detected fields of every reachable frame, ordered by frame and then document order, with the
+   * semantic key each one was recognized as.
+   */
   fields: FieldDescriptor[]
+  /** How each field matches the saved answers of the active profile, by field id. */
+  matches: Record<string, MatchResult>
   scanning: boolean
   /** When the field list was last refreshed, by a scan or a page update. */
   scannedAt: number | null
@@ -42,6 +49,8 @@ export interface AutofillConfiguration {
    * controller creates its own and disposes it on `destroy()`.
    */
   store?: AutofillStore
+  /** Extra classifiers and matching strategies; the built-in ones always run. */
+  registry?: PluginRegistry
   logger?: Logger
   /** Injectable clock for deterministic tests. */
   now?: () => number
