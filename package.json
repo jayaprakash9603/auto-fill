@@ -1,0 +1,46 @@
+{
+  "name": "universal-form-autofill",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@10.34.7",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "build": "pnpm build:package && pnpm --filter \"./apps/**\" build",
+    "build:package": "pnpm --filter @universal-form-autofill/sdk build",
+    "build:extension": "pnpm --filter @ufa/chrome-extension build",
+    "dev:extension": "pnpm --filter @ufa/chrome-extension dev",
+    "test:package": "node scripts/smoke-sdk-consumer.mjs",
+    "lint": "eslint .",
+    "typecheck": "pnpm -r typecheck && tsc --noEmit -p e2e/tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "playwright test",
+    "check:deps": "depcruise packages apps --config .dependency-cruiser.cjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "changeset": "changeset",
+    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm check:deps && pnpm build"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^3.0.3",
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@types/chrome": "^0.3.6",
+    "@types/node": "^24.13.3",
+    "dependency-cruiser": "^18.7.0",
+    "eslint": "^10.13.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
+    "jsdom": "^30.1.3",
+    "prettier": "^3.9.10",
+    "tsdown": "^0.23.2",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.0",
+    "vitest": "^5.0.5"
+  }
+}

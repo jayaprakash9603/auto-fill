@@ -1,0 +1,9 @@
+pnpm-lock.yaml
+dist
+dist-*
+release
+coverage
+playwright-report
+test-results
+.tmp
+apps/*/public/content-script.js

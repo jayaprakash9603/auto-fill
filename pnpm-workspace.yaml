@@ -1,0 +1,10 @@
+packages:
+  - apps/*
+  - packages/*
+
+onlyBuiltDependencies:
+  - esbuild
+
+# Ships prebuilt binaries through optional dependencies; its install script is only a source-build fallback.
+ignoredBuiltDependencies:
+  - '@parcel/watcher'

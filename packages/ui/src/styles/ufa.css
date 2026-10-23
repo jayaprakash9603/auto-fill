@@ -1,0 +1,220 @@
+/*
+ * Universal Form Autofill styles. Every utility is prefixed with `ufa:` and every token lives on
+ * `.ufa-root`, so nothing here styles host markup. There is no global preflight; a minimal reset is
+ * scoped to `.ufa-root` with zero specificity so host overrides stay easy.
+ *
+ * Utilities are deliberately unlayered: hosts often ship unlayered globals such as
+ * `* { border-color: var(--border) }`, which would beat any layered utility regardless of
+ * specificity. Unlayered, a single `ufa:` class (0,1,0) still wins over those element rules.
+ */
+@layer theme, base;
+@import 'tailwindcss/theme.css' layer(theme) theme(inline) prefix(ufa);
+@import 'tailwindcss/utilities.css';
+
+@source '../';
+
+@custom-variant dark (&:where([data-ufa-scheme='dark'], [data-ufa-scheme='dark'] *));
+
+@theme inline {
+  --color-background: var(--ufa-background);
+  --color-foreground: var(--ufa-foreground);
+  --color-card: var(--ufa-card);
+  --color-card-foreground: var(--ufa-card-foreground);
+  --color-popover: var(--ufa-popover);
+  --color-popover-foreground: var(--ufa-popover-foreground);
+  --color-primary: var(--ufa-primary);
+  --color-primary-foreground: var(--ufa-primary-foreground);
+  --color-secondary: var(--ufa-secondary);
+  --color-secondary-foreground: var(--ufa-secondary-foreground);
+  --color-muted: var(--ufa-muted);
+  --color-muted-foreground: var(--ufa-muted-foreground);
+  --color-accent: var(--ufa-accent);
+  --color-accent-foreground: var(--ufa-accent-foreground);
+  --color-destructive: var(--ufa-destructive);
+  --color-destructive-foreground: var(--ufa-destructive-foreground);
+  --color-success: var(--ufa-success);
+  --color-warning: var(--ufa-warning);
+  --color-info: var(--ufa-info);
+  --color-border: var(--ufa-border);
+  --color-input: var(--ufa-input);
+  --color-ring: var(--ufa-ring);
+  --radius-sm: calc(var(--ufa-radius) - 4px);
+  --radius-md: calc(var(--ufa-radius) - 2px);
+  --radius-lg: var(--ufa-radius);
+  --radius-xl: calc(var(--ufa-radius) + 4px);
+  --font-sans: var(--ufa-font-family);
+  --spacing: var(--ufa-spacing-unit);
+  --animate-spin: ufa-spin 1s linear infinite;
+  --animate-pulse: ufa-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+
+  @keyframes ufa-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes ufa-pulse {
+    50% {
+      opacity: 0.5;
+    }
+  }
+}
+
+@layer base {
+  :where(.ufa-root) {
+    --ufa-d-background: #ffffff;
+    --ufa-d-foreground: #0f172a;
+    --ufa-d-card: #ffffff;
+    --ufa-d-card-foreground: #0f172a;
+    --ufa-d-popover: #ffffff;
+    --ufa-d-popover-foreground: #0f172a;
+    --ufa-d-primary: #2563eb;
+    --ufa-d-primary-foreground: #ffffff;
+    --ufa-d-secondary: #f1f5f9;
+    --ufa-d-secondary-foreground: #0f172a;
+    --ufa-d-muted: #f1f5f9;
+    --ufa-d-muted-foreground: #64748b;
+    --ufa-d-accent: #eef2ff;
+    --ufa-d-accent-foreground: #1e293b;
+    --ufa-d-destructive: #dc2626;
+    --ufa-d-destructive-foreground: #ffffff;
+    --ufa-d-success: #16a34a;
+    --ufa-d-warning: #d97706;
+    --ufa-d-info: #0284c7;
+    --ufa-d-border: #e2e8f0;
+    --ufa-d-input: #cbd5e1;
+    --ufa-d-ring: #2563eb;
+    --ufa-d-radius: 0.5rem;
+    --ufa-d-font-family:
+      ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+      sans-serif;
+    --ufa-d-font-size: 14px;
+    --ufa-d-spacing-unit: 0.25rem;
+
+    /* Public tokens. Themes override these (inline); `--ufa-d-*` stay available as fallbacks. */
+    --ufa-background: var(--ufa-d-background);
+    --ufa-foreground: var(--ufa-d-foreground);
+    --ufa-card: var(--ufa-d-card);
+    --ufa-card-foreground: var(--ufa-d-card-foreground);
+    --ufa-popover: var(--ufa-d-popover);
+    --ufa-popover-foreground: var(--ufa-d-popover-foreground);
+    --ufa-primary: var(--ufa-d-primary);
+    --ufa-primary-foreground: var(--ufa-d-primary-foreground);
+    --ufa-secondary: var(--ufa-d-secondary);
+    --ufa-secondary-foreground: var(--ufa-d-secondary-foreground);
+    --ufa-muted: var(--ufa-d-muted);
+    --ufa-muted-foreground: var(--ufa-d-muted-foreground);
+    --ufa-accent: var(--ufa-d-accent);
+    --ufa-accent-foreground: var(--ufa-d-accent-foreground);
+    --ufa-destructive: var(--ufa-d-destructive);
+    --ufa-destructive-foreground: var(--ufa-d-destructive-foreground);
+    --ufa-success: var(--ufa-d-success);
+    --ufa-warning: var(--ufa-d-warning);
+    --ufa-info: var(--ufa-d-info);
+    --ufa-border: var(--ufa-d-border);
+    --ufa-input: var(--ufa-d-input);
+    --ufa-ring: var(--ufa-d-ring);
+    --ufa-radius: var(--ufa-d-radius);
+    --ufa-font-family: var(--ufa-d-font-family);
+    --ufa-font-size: var(--ufa-d-font-size);
+    --ufa-spacing-unit: var(--ufa-d-spacing-unit);
+
+    color-scheme: light;
+    color: var(--ufa-foreground);
+    font-family: var(--ufa-font-family);
+    font-size: var(--ufa-font-size);
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  :where(.ufa-root[data-ufa-scheme='dark']) {
+    --ufa-d-background: #0b1220;
+    --ufa-d-foreground: #e2e8f0;
+    --ufa-d-card: #111a2e;
+    --ufa-d-card-foreground: #e2e8f0;
+    --ufa-d-popover: #111a2e;
+    --ufa-d-popover-foreground: #e2e8f0;
+    --ufa-d-primary: #60a5fa;
+    --ufa-d-primary-foreground: #0b1220;
+    --ufa-d-secondary: #1e293b;
+    --ufa-d-secondary-foreground: #e2e8f0;
+    --ufa-d-muted: #1e293b;
+    --ufa-d-muted-foreground: #94a3b8;
+    --ufa-d-accent: #1e2a44;
+    --ufa-d-accent-foreground: #e2e8f0;
+    --ufa-d-destructive: #f87171;
+    --ufa-d-destructive-foreground: #0b1220;
+    --ufa-d-success: #4ade80;
+    --ufa-d-warning: #fbbf24;
+    --ufa-d-info: #38bdf8;
+    --ufa-d-border: #253149;
+    --ufa-d-input: #334155;
+    --ufa-d-ring: #60a5fa;
+    color-scheme: dark;
+  }
+
+  :where(.ufa-root[data-ufa-density='compact']) {
+    --ufa-d-font-size: 13px;
+    --ufa-d-spacing-unit: 0.2rem;
+  }
+
+  :where(.ufa-root),
+  :where(.ufa-root) *,
+  :where(.ufa-root) ::before,
+  :where(.ufa-root) ::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: 0 solid var(--ufa-border);
+  }
+
+  :where(.ufa-root) :where(button, input, select, textarea) {
+    font: inherit;
+    color: inherit;
+    letter-spacing: inherit;
+    background-color: transparent;
+    border-radius: 0;
+  }
+
+  :where(.ufa-root) :where(button, [role='button']) {
+    cursor: pointer;
+  }
+
+  :where(.ufa-root) :where(button:disabled, [aria-disabled='true']) {
+    cursor: default;
+  }
+
+  :where(.ufa-root) :where(h1, h2, h3, h4, h5, h6) {
+    font-size: inherit;
+    font-weight: inherit;
+  }
+
+  :where(.ufa-root) :where(ol, ul, menu) {
+    list-style: none;
+  }
+
+  :where(.ufa-root) :where(a) {
+    color: inherit;
+    text-decoration: inherit;
+  }
+
+  :where(.ufa-root) :where(svg) {
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  :where(.ufa-root) :where(textarea) {
+    resize: vertical;
+  }
+
+  :where(.ufa-root) ::placeholder {
+    color: var(--ufa-muted-foreground);
+    opacity: 1;
+  }
+
+  :where(.ufa-root) :focus-visible {
+    outline: 2px solid var(--ufa-ring);
+    outline-offset: 2px;
+  }
+}

@@ -1,0 +1,19 @@
+node_modules
+dist
+dist-*
+release
+coverage
+playwright-report
+test-results
+blob-report
+*.local
+*.tsbuildinfo
+.vite
+.tmp
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json
+
+# Generated from packages/extension-bridge/src/content-main.ts by scripts/build-content-runtime.mjs
+apps/*/public/content-script.js

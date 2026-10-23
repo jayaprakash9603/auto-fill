@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "..",
+    "types": ["chrome"]
+  },
+  "include": [
+    "src",
+    "../core/src",
+    "../storage/src",
+    "../autofill-sdk/src",
+    "../extension-bridge/src",
+    "../ui/src"
+  ],
+  "exclude": [
+    "../*/src/**/*.test.ts",
+    "../*/src/**/*.test.tsx",
+    "../*/src/test-utils/**",
+    "../extension-bridge/src/content-main.ts"
+  ]
+}
