@@ -7,6 +7,7 @@ import { MessagesProvider, useTranslate, type AutofillMessages } from '../i18n/m
 import { cn } from '../lib/cn'
 import type { AutofillTheme } from '../theme/theme'
 import { AutofillRoot } from './autofill-root'
+import { FieldList } from './field-list'
 import { ConnectionBadge, PortalStatus } from './portal-status'
 import { EmptyState, ErrorState, PermissionNotice, RestrictedPageState } from './states'
 import { Button } from './ui/button'
@@ -42,7 +43,7 @@ export function AutofillPanel({
       )}
     >
       <MessagesProvider messages={messages}>
-        <PanelBody host={host} controller={controller} />
+        <PanelBody host={host} controller={controller} hideTitle={embedded} />
       </MessagesProvider>
     </AutofillRoot>
   )
@@ -51,31 +52,41 @@ export function AutofillPanel({
 function PanelBody({
   host,
   controller: external,
+  hideTitle,
 }: {
   host?: AutofillHost
   controller?: AutofillController
+  /** The host page already shows a title; keep the heading for assistive technology only. */
+  hideTitle: boolean
 }) {
   const t = useTranslate()
   const controller = useAutofillController(host, external)
   const state = useAutofillState(controller)
   const reconnect = useCallback(() => void controller?.connect(), [controller])
+  const busy = state.status === 'connecting' || state.scanning
 
   return (
     <div className="ufa:flex ufa:min-h-0 ufa:flex-1 ufa:flex-col">
       <header className="ufa:flex ufa:items-center ufa:gap-2 ufa:border-b ufa:border-border ufa:px-3 ufa:py-2">
-        <h2 className="ufa:flex-1 ufa:truncate ufa:text-sm ufa:font-semibold">
+        <h2
+          className={cn(
+            'ufa:flex-1 ufa:truncate ufa:text-sm ufa:font-semibold',
+            hideTitle && 'ufa:sr-only',
+          )}
+        >
           {t('panel.title')}
         </h2>
+        {hideTitle ? <span className="ufa:flex-1" aria-hidden /> : null}
         <ConnectionBadge status={state.status} />
         <Button
           variant="ghost"
           size="icon"
           onClick={reconnect}
-          disabled={!controller || state.status === 'connecting'}
+          disabled={!controller || busy}
           aria-label={t('panel.refresh')}
           title={t('panel.refresh')}
         >
-          <RotateCwIcon className={cn(state.status === 'connecting' && 'ufa:animate-spin')} />
+          <RotateCwIcon className={cn(busy && 'ufa:animate-spin')} />
         </Button>
       </header>
       <div className="ufa:flex ufa:min-h-0 ufa:flex-1 ufa:flex-col ufa:gap-3 ufa:overflow-y-auto ufa:p-3">
@@ -133,7 +144,14 @@ function PanelContent({
     }
   }
 
-  if (state.page) return <PortalStatus page={state.page} />
+  if (state.page) {
+    return (
+      <>
+        <PortalStatus page={state.page} />
+        <FieldList fields={state.fields} scanning={state.scanning} />
+      </>
+    )
+  }
 
   return <EmptyState icon={<PlugZapIcon />} title={t('status.idle')} />
 }

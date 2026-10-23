@@ -6,4 +6,7 @@ export {
   type ContentRuntimeHandle,
   type RuntimeMessagePort,
 } from '@ufa/autofill-sdk/content'
-export { installExtensionContentRuntime } from '@ufa/extension-bridge/content'
+export {
+  installExtensionContentRuntime,
+  type ExtensionContentRuntimeOptions,
+} from '@ufa/extension-bridge/content'

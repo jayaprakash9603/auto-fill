@@ -32,6 +32,10 @@ const checks: Record<string, true> = {
     typeof runtimeResponseDataSchemas.ping,
     RuntimeResponseData<'ping'>
   >,
+  ScanResponse: true satisfies Out<
+    typeof runtimeResponseDataSchemas.scan,
+    RuntimeResponseData<'scan'>
+  >,
 }
 
 describe('protocol types match their schemas', () => {

@@ -13,6 +13,8 @@ export type AutofillEvent =
   | { type: 'connected'; page: PageInfo }
   | { type: 'scan:start' }
   | { type: 'scan:complete'; page: PageInfo; fieldCount: number; durationMs: number }
+  /** The page changed its fields after a scan (a new step, a revealed question, a frame update). */
+  | { type: 'fields:changed'; fieldCount: number }
   | { type: 'match:complete'; counts: Record<string, number> }
   | { type: 'fill:complete'; results: FillResult[] }
   | { type: 'clear:complete'; results: ClearResult[] }

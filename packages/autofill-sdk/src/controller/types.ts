@@ -2,6 +2,7 @@ import type {
   AutofillErrorCode,
   AutofillEventHandler,
   AutofillEventType,
+  FieldDescriptor,
   Logger,
   PageDriver,
   PageInfo,
@@ -23,6 +24,11 @@ export interface AutofillState {
   status: ConnectionStatus
   page: PageInfo | null
   error: AutofillStateError | null
+  /** Detected fields of every reachable frame, ordered by frame and then document order. */
+  fields: FieldDescriptor[]
+  scanning: boolean
+  /** When the field list was last refreshed, by a scan or a page update. */
+  scannedAt: number | null
 }
 
 export interface AutofillConfiguration {
@@ -39,8 +45,13 @@ export interface AutofillController {
   getState(): AutofillState
   subscribe(listener: (state: AutofillState) => void): () => void
   on<T extends AutofillEventType>(type: T, handler: AutofillEventHandler<T>): () => void
-  /** Connects to the current page. Safe to call repeatedly; concurrent calls share one attempt. */
+  /**
+   * Connects to the current page and scans its fields. Safe to call repeatedly; concurrent calls
+   * share one attempt.
+   */
   connect(): Promise<PageInfo | null>
+  /** Rescans the connected page (connecting first if needed) and returns the fields. */
+  scan(): Promise<FieldDescriptor[]>
   destroy(): Promise<void>
 }
 

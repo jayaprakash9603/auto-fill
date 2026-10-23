@@ -1,4 +1,4 @@
-import { toAutofillError } from '@ufa/core'
+import { toAutofillError, type FieldDetector } from '@ufa/core'
 
 import { createDomPageDriver, type DomPageDriver } from '../dom/dom-page-driver'
 import {
@@ -28,6 +28,8 @@ export interface ContentRuntimeOptions {
   port: RuntimeMessagePort
   document?: Document
   window?: Window
+  /** Field detectors for hosts that bundle their own content script; defaults to the built-ins. */
+  detectors?: readonly FieldDetector[]
 }
 
 export interface ContentRuntimeHandle {
@@ -45,6 +47,8 @@ async function handleRequest(driver: DomPageDriver, request: RuntimeRequest): Pr
   switch (request.type) {
     case 'ping':
       return driver.connect()
+    case 'scan':
+      return driver.scan(request.request)
   }
 }
 
@@ -60,7 +64,11 @@ export function installAutofillContentRuntime(
   if (existing?.version === SDK_VERSION && existing.isConnected()) return existing
   existing?.dispose()
 
-  const driver = createDomPageDriver({ document: options.document, window: options.window })
+  const driver = createDomPageDriver({
+    ...(options.document ? { document: options.document } : {}),
+    ...(options.window ? { window: options.window } : {}),
+    ...(options.detectors ? { detectors: options.detectors } : {}),
+  })
   const stopEvents = driver.subscribe((event) => options.port.emit(createEventEnvelope(event)))
 
   const stopMessages = options.port.onMessage((message) => {

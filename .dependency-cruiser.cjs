@@ -23,7 +23,7 @@ const ALLOWED = {
   ],
   'extension-bridge': ['core', 'autofill-sdk', 'storage'],
   ui: ['core', 'autofill-sdk'],
-  'public-sdk': ['core', 'autofill-sdk', 'ui', 'extension-bridge', 'storage'],
+  'public-sdk': ['core', 'field-detection', 'autofill-sdk', 'ui', 'extension-bridge', 'storage'],
 }
 
 const packageRules = Object.entries(ALLOWED).map(([name, allowed]) => {

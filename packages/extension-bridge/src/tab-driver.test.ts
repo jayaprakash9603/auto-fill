@@ -97,6 +97,30 @@ describe('extension tab driver', () => {
     expect(fake.events.onUpdated.size()).toBe(0)
     expect(fake.events.onMessage.size()).toBe(0)
   })
+
+  it('scans reachable frames and tags fields and change events with their frame', async () => {
+    document.body.innerHTML = '<label for="x">Email</label><input id="x" type="email" />'
+    fake = createFakeChrome()
+    const driver = createExtensionTabDriver({ chrome: fake.chrome, contentScriptFile: 'cs.js' })
+    await expect(driver.scan()).rejects.toMatchObject({ code: 'CONTENT_UNAVAILABLE' })
+
+    const listener = vi.fn()
+    driver.subscribe(listener)
+    await driver.connect()
+    const result = await driver.scan()
+    expect(result.fields.map((field) => [field.label, field.type, field.frameId])).toEqual([
+      ['Email', 'email', 0],
+    ])
+    expect(result.page.frameCount).toBe(1)
+
+    document.getElementById('x')!.remove()
+    await vi.waitFor(
+      () =>
+        expect(listener).toHaveBeenCalledWith({ type: 'fields-changed', frameId: 0, fields: [] }),
+      { timeout: 2_000 },
+    )
+    document.body.innerHTML = ''
+  })
 })
 
 describe('extension host', () => {

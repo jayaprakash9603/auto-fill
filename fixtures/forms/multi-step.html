@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Multi-step application</title>
+    <style>
+      .conditional {
+        display: none;
+      }
+      .conditional.shown {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Multi-step application</h1>
+    <form id="wizard" novalidate>
+      <section id="step-1" data-step="1">
+        <h2>Step 1: About you</h2>
+        <label for="full-name">Full name</label>
+        <input id="full-name" name="fullName" required />
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" required />
+        <label
+          ><input type="checkbox" id="has-referral" name="hasReferral" /> I was referred by an
+          employee</label
+        >
+        <div class="conditional" id="referral-block">
+          <label for="referrer">Referrer name</label>
+          <input id="referrer" name="referrer" />
+        </div>
+        <button type="button" id="to-step-2">Next</button>
+      </section>
+
+      <section id="step-2" data-step="2" hidden>
+        <h2>Step 2: Experience</h2>
+        <label for="years">Years of experience</label>
+        <select id="years" name="years">
+          <option value="">Choose…</option>
+          <option value="0-2">0–2</option>
+          <option value="3-5">3–5</option>
+          <option value="6+">6+</option>
+        </select>
+        <label for="portfolio">Portfolio URL</label>
+        <input id="portfolio" name="portfolio" type="url" />
+        <button type="button" id="to-step-3">Next</button>
+      </section>
+
+      <div id="step-3-slot"></div>
+    </form>
+
+    <template id="step-3-template">
+      <section id="step-3" data-step="3">
+        <h2>Step 3: Motivation</h2>
+        <label for="motivation">Why do you want to join?</label>
+        <textarea id="motivation" name="motivation"></textarea>
+      </section>
+    </template>
+
+    <script>
+      document.getElementById('has-referral').addEventListener('change', (event) => {
+        document.getElementById('referral-block').classList.toggle('shown', event.target.checked)
+      })
+      document.getElementById('to-step-2').addEventListener('click', () => {
+        document.getElementById('step-1').hidden = true
+        document.getElementById('step-2').hidden = false
+      })
+      document.getElementById('to-step-3').addEventListener('click', () => {
+        document.getElementById('step-2').hidden = true
+        const template = document.getElementById('step-3-template')
+        document.getElementById('step-3-slot').append(template.content.cloneNode(true))
+      })
+    </script>
+  </body>
+</html>

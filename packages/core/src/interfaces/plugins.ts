@@ -27,6 +27,8 @@ export interface DetectedControl {
   labelOverride?: string
   /** Set when the control was found but cannot be operated reliably. */
   unsupportedReason?: string
+  /** 0..1, how sure the detector is that this is a real form control. Defaults to 0.8. */
+  confidence?: number
 }
 
 export interface DetectionContext {

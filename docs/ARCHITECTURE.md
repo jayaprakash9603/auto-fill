@@ -11,19 +11,19 @@ knowledge lives in adapters, and field meaning comes from a semantic catalog tha
 
 ## Packages
 
-| Package                     | Role                                                                                                                                    |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/core`             | Domain types and their Zod schemas, error codes, events, the plugin registry, safety classification, semantic catalog, redacting logger |
-| `packages/storage`          | `StorageAdapter` implementations: in-memory and any `chrome.storage`-compatible area, with namespaced keys                              |
-| `packages/autofill-sdk`     | Headless controller (`createAutofill`), the page runtime, the DOM page driver and the `ufa/v1` message protocol                         |
-| `packages/extension-bridge` | Extension-page host: resolves the target tab, injects the runtime, proxies the page driver over `chrome.runtime` messaging              |
-| `packages/ui`               | React panel and shadcn/ui-based components, scoped stylesheet, theme adapter, messages                                                  |
-| `packages/public-sdk`       | The published facade. Bundles everything above into `release/sdk`                                                                       |
-| `apps/chrome-extension`     | The standalone MV3 extension                                                                                                            |
+| Package                     | Role                                                                                                                                       |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `packages/core`             | Domain types and their Zod schemas, error codes, events, the plugin registry, safety classification, semantic catalog, redacting logger    |
+| `packages/field-detection`  | DOM scanner: detector plugins, label resolution, section context, visibility, stable field ids, mutation observer (see FIELD_DETECTION.md) |
+| `packages/storage`          | `StorageAdapter` implementations: in-memory and any `chrome.storage`-compatible area, with namespaced keys                                 |
+| `packages/autofill-sdk`     | Headless controller (`createAutofill`), the page runtime, the DOM page driver and the `ufa/v1` message protocol                            |
+| `packages/extension-bridge` | Extension-page host: resolves the target tab, injects the runtime, proxies the page driver over `chrome.runtime` messaging                 |
+| `packages/ui`               | React panel and shadcn/ui-based components, scoped stylesheet, theme adapter, messages                                                     |
+| `packages/public-sdk`       | The published facade. Bundles everything above into `release/sdk`                                                                          |
+| `apps/chrome-extension`     | The standalone MV3 extension                                                                                                               |
 
-Later phases add `field-detection`, `matching-engine`, `form-actions`, `learning-engine`,
-`synthetic-data` and `portal-adapters` packages, plus `apps/demo-host-extension`, which may only
-import the public package.
+Later phases add `matching-engine`, `form-actions`, `learning-engine`, `synthetic-data` and
+`portal-adapters` packages, plus `apps/demo-host-extension`, which may only import the public package.
 
 ### Dependency direction
 
@@ -33,8 +33,10 @@ never import each other, and there are no cycles.
 ```mermaid
 flowchart BT
   core
+  detection[field-detection] --> core
   storage --> core
   autofillSdk[autofill-sdk] --> core
+  autofillSdk --> detection
   autofillSdk --> storage
   bridge[extension-bridge] --> autofillSdk
   bridge --> storage
@@ -65,7 +67,10 @@ sequenceDiagram
   Host->>Tab: ping each frame that answered (ufa/v1)
   Tab-->>Host: PageInfo per frame (validated with Zod)
   Host-->>Panel: state = ready, merged PageInfo
-  Tab-->>Panel: page events (navigation, changes)
+  Host->>Tab: scan each frame
+  Tab-->>Host: FieldDescriptor[] per frame (validated), tagged with frameId
+  Host-->>Panel: state.fields
+  Tab-->>Panel: fields-changed per frame, navigation
 ```
 
 - **Injection is on demand.** Nothing runs in a page until the panel connects to it, and nothing is
@@ -81,15 +86,21 @@ sequenceDiagram
   request, or `reason: 'file-access'`), `RESTRICTED_PAGE`, `NO_TAB` or `INJECTION_FAILED`, and the panel
   renders a specific state for each.
 
-`PageDriver` (`connect`, `subscribe`, `dispose`) is the only way the engine touches a page. The DOM
-driver runs where the document lives (the content script, tests, or an in-page host). The extension
-tab driver implements the same contract over messaging.
+`PageDriver` (`connect`, `scan`, `subscribe`, `dispose`) is the only way the engine touches a page.
+The DOM driver runs where the document lives (the content script, tests, or an in-page host) and
+wraps the field scanner; after its first scan it watches the page and emits `fields-changed` with the
+frame's complete field list whenever the structure changes. The extension tab driver implements the
+same contract over messaging, fanning scans out to every reachable frame and stamping each field and
+event with the sender's `frameId`. Descriptors never carry element references; actions re-find
+elements by session id and check the fingerprint first.
 
 ### Controller and state
 
 `createAutofill({ driver, storage })` returns an `AutofillController`: a small store
-(`idle → connecting → ready | error`, then `destroyed`), a typed event bus, and `connect()`, which
-callers may invoke repeatedly; concurrent calls share one attempt. React binds through
+(`idle → connecting → ready | error`, then `destroyed`, plus `fields`, `scanning` and `scannedAt`), a
+typed event bus, `connect()`, which connects and scans and may be called repeatedly (concurrent calls
+share one attempt), and `scan()`. Page updates replace the fields of the frame that sent them; a
+frame's report that arrives during a scan wins over the scan's older snapshot of that frame. React binds through
 `useAutofillController(host)`, which owns the controller's lifetime, and `useAutofillState(controller)`.
 
 `AutofillHost` is what a UI needs from its environment: `createController()` plus an optional
@@ -115,8 +126,10 @@ create it at module scope.
 These rules belong to the engine, not to any UI, so every host gets them:
 
 - `classifySensitivity` sorts controls into normal, consent and prohibited. Prohibited controls
-  (passwords, one-time codes, payment fields, tokens, file inputs, hidden, disabled or read-only
-  controls, authentication widgets) are never read, filled, cleared, learned or generated.
+  (passwords, one-time codes, payment fields, tokens, file inputs, authentication widgets) are never
+  read, filled, cleared, learned or generated; the scanner does not even read their values.
+- `type="hidden"` inputs are never detected. Hidden (including honeypots), disabled and read-only
+  controls are left out of scans by default and are never filled or cleared.
 - Consent, terms and declaration controls are never set automatically; each needs explicit selection.
 - Non-empty fields are not overwritten by default, and forms are never submitted.
 - Learning is opt-in. Synthetic values are marked as generated, are never stored as answers, and are

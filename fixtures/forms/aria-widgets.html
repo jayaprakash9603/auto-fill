@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>ARIA widgets</title>
+    <style>
+      [role='option'][aria-selected='true'],
+      [role='radio'][aria-checked='true'] {
+        font-weight: bold;
+      }
+      [role='combobox'],
+      [role='radio'],
+      [role='checkbox'],
+      [role='switch'],
+      [role='option'] {
+        cursor: pointer;
+        padding: 4px;
+        border: 1px solid #888;
+        display: inline-block;
+      }
+      [role='textbox'] {
+        border: 1px solid #888;
+        min-height: 48px;
+        padding: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Custom widget application</h1>
+    <div role="form" aria-label="Custom widget application form">
+      <h2>Experience</h2>
+
+      <span id="cover-label">Cover letter</span>
+      <div
+        role="textbox"
+        contenteditable="true"
+        aria-multiline="true"
+        aria-labelledby="cover-label"
+      ></div>
+
+      <span id="experience-label">Years of experience</span>
+      <div
+        id="experience"
+        role="combobox"
+        tabindex="0"
+        aria-haspopup="listbox"
+        aria-expanded="false"
+        aria-controls="experience-options"
+        aria-labelledby="experience-label"
+        aria-required="true"
+      >
+        Select…
+      </div>
+      <ul id="experience-options" role="listbox" hidden>
+        <li role="option" data-value="0-2">0–2 years</li>
+        <li role="option" data-value="3-5">3–5 years</li>
+        <li role="option" data-value="6+">6 or more years</li>
+      </ul>
+
+      <label for="city">City</label>
+      <input
+        id="city"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded="false"
+        aria-controls="city-options"
+      />
+      <ul id="city-options" role="listbox" hidden>
+        <li role="option">Bengaluru</li>
+        <li role="option">London</li>
+        <li role="option">New York</li>
+      </ul>
+
+      <div role="textbox" aria-label="Application reference">APP-1042</div>
+
+      <h2>Preferences</h2>
+
+      <p id="relocate-q">Are you willing to relocate?</p>
+      <div role="radiogroup" aria-labelledby="relocate-q">
+        <div role="radio" aria-checked="false" tabindex="0" data-value="yes">Yes</div>
+        <div role="radio" aria-checked="true" tabindex="-1" data-value="no">No</div>
+      </div>
+
+      <span id="remote-label">Open to remote work</span>
+      <div role="switch" aria-checked="true" tabindex="0" aria-labelledby="remote-label"></div>
+
+      <span id="alerts-label">Subscribe to job alerts</span>
+      <span role="checkbox" aria-checked="false" tabindex="0" aria-labelledby="alerts-label"></span>
+
+      <div role="listbox" aria-label="Preferred locations" aria-multiselectable="true">
+        <div role="option" aria-selected="true">Remote</div>
+        <div role="option" aria-selected="false">Hybrid</div>
+        <div role="option" aria-selected="false" aria-disabled="true">On-site</div>
+      </div>
+
+      <div
+        role="slider"
+        tabindex="0"
+        aria-label="Salary expectation"
+        aria-valuemin="0"
+        aria-valuemax="300000"
+        aria-valuenow="90000"
+      ></div>
+      <div role="spinbutton" tabindex="0" aria-label="Notice period in weeks" aria-valuenow="4">
+        4
+      </div>
+    </div>
+    <script>
+      const combobox = document.getElementById('experience')
+      const listbox = document.getElementById('experience-options')
+      combobox.addEventListener('click', () => {
+        const open = combobox.getAttribute('aria-expanded') === 'true'
+        combobox.setAttribute('aria-expanded', String(!open))
+        listbox.hidden = open
+      })
+      listbox.addEventListener('click', (event) => {
+        const option = event.target.closest('[role="option"]')
+        if (!option) return
+        for (const entry of listbox.querySelectorAll('[role="option"]'))
+          entry.setAttribute('aria-selected', String(entry === option))
+        combobox.textContent = option.textContent
+        combobox.setAttribute('aria-expanded', 'false')
+        listbox.hidden = true
+      })
+      for (const radio of document.querySelectorAll('[role="radio"]')) {
+        radio.addEventListener('click', () => {
+          for (const entry of radio.parentElement.children)
+            entry.setAttribute('aria-checked', String(entry === radio))
+        })
+      }
+      for (const toggle of document.querySelectorAll('[role="switch"], [role="checkbox"]')) {
+        toggle.addEventListener('click', () => {
+          const checked = toggle.getAttribute('aria-checked') === 'true'
+          toggle.setAttribute('aria-checked', String(!checked))
+        })
+      }
+    </script>
+  </body>
+</html>

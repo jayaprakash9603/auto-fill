@@ -46,7 +46,7 @@ export function PortalStatus({ page, className }: { page: PageInfo; className?: 
         </div>
       </div>
       <div className="ufa:flex ufa:flex-wrap ufa:items-center ufa:gap-1.5">
-        <Badge variant="secondary">{t('page.adapter', { name: page.adapterName })}</Badge>
+        <Badge variant="info">{t('page.adapter', { name: page.adapterName })}</Badge>
         <Badge variant="outline">
           <LayersIcon aria-hidden />
           {page.frameCount === 1 ? t('page.frame') : t('page.frames', { count: page.frameCount })}

@@ -22,6 +22,7 @@
     "@ufa/autofill-sdk": "workspace:*",
     "@ufa/core": "workspace:*",
     "@ufa/extension-bridge": "workspace:*",
+    "@ufa/field-detection": "workspace:*",
     "@ufa/storage": "workspace:*",
     "@ufa/ui": "workspace:*"
   },

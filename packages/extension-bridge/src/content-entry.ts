@@ -3,6 +3,7 @@ import {
   type ContentRuntimeHandle,
   type RuntimeMessagePort,
 } from '@ufa/autofill-sdk/content'
+import type { FieldDetector } from '@ufa/core'
 
 function runtimeAlive(): boolean {
   try {
@@ -12,8 +13,15 @@ function runtimeAlive(): boolean {
   }
 }
 
+export interface ExtensionContentRuntimeOptions {
+  /** Field detectors to use instead of the built-ins, e.g. `[...BUILTIN_DETECTORS, mine]`. */
+  detectors?: readonly FieldDetector[]
+}
+
 /** Wires the page runtime to `chrome.runtime` messaging. Call from an injected content script. */
-export function installExtensionContentRuntime(): ContentRuntimeHandle {
+export function installExtensionContentRuntime(
+  options: ExtensionContentRuntimeOptions = {},
+): ContentRuntimeHandle {
   const port: RuntimeMessagePort = {
     onMessage(listener) {
       const handler = (
@@ -35,5 +43,8 @@ export function installExtensionContentRuntime(): ContentRuntimeHandle {
     },
     isConnected: runtimeAlive,
   }
-  return installAutofillContentRuntime({ port })
+  return installAutofillContentRuntime({
+    port,
+    ...(options.detectors ? { detectors: options.detectors } : {}),
+  })
 }

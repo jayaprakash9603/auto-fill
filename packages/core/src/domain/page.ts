@@ -92,7 +92,11 @@ export const clearOperationSchema = z.object({
 })
 
 export type PageEvent =
-  | { type: 'fields-changed'; fields: FieldDescriptor[] }
+  /**
+   * The complete, current field list of one frame. `frameId` is null where the sender cannot know
+   * its frame (the in-page runtime); extension drivers fill it in from the message sender.
+   */
+  | { type: 'fields-changed'; frameId: number | null; fields: FieldDescriptor[] }
   /** The user changed an armed, unmatched field. Only emitted while learning is armed. */
   | { type: 'field-input'; field: FieldDescriptor; value: FieldValue }
   | { type: 'navigated'; url: string }
@@ -101,6 +105,7 @@ export type PageEvent =
 export const pageEventSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('fields-changed'),
+    frameId: z.number().int().nonnegative().nullable(),
     fields: z.array(fieldDescriptorSchema).max(5_000),
   }),
   z.object({

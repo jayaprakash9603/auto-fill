@@ -3,9 +3,13 @@ import {
   AutofillError,
   pageEventSchema,
   pageInfoSchema,
+  scanRequestSchema,
+  scanResultSchema,
   type AutofillErrorCode,
   type PageEvent,
   type PageInfo,
+  type ScanRequest,
+  type ScanResult,
 } from '@ufa/core'
 import { z } from 'zod'
 
@@ -17,11 +21,19 @@ export interface PingRequest {
   requestId: string
   type: 'ping'
 }
-export type RuntimeRequest = PingRequest
+export interface ScanRequestMessage {
+  channel: typeof PROTOCOL_CHANNEL
+  kind: 'request'
+  requestId: string
+  type: 'scan'
+  request: ScanRequest
+}
+export type RuntimeRequest = PingRequest | ScanRequestMessage
 export type RuntimeRequestType = RuntimeRequest['type']
 
 export interface RuntimeResponseDataMap {
   ping: PageInfo
+  scan: ScanResult
 }
 export type RuntimeResponseData<T extends RuntimeRequestType> = RuntimeResponseDataMap[T]
 
@@ -45,11 +57,13 @@ const requestBase = {
 
 export const runtimeRequestSchema = z.discriminatedUnion('type', [
   z.object({ ...requestBase, type: z.literal('ping') }),
+  z.object({ ...requestBase, type: z.literal('scan'), request: scanRequestSchema }),
 ])
 
 /** Response payload schemas, validated by the caller so a compromised page cannot inject shapes. */
 export const runtimeResponseDataSchemas = {
   ping: pageInfoSchema,
+  scan: scanResultSchema,
 } satisfies { [K in RuntimeRequestType]: z.ZodType<RuntimeResponseDataMap[K]> }
 
 export const runtimeErrorSchema = z.object({

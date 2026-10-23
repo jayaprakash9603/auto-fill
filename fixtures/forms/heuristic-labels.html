@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Heuristic labels</title>
+    <style>
+      .row {
+        display: flex;
+        gap: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Supplementary questions</h1>
+    <form id="supplementary">
+      <h2>Current role</h2>
+      <table>
+        <tr>
+          <td>Company</td>
+          <td><input name="employer_1" /></td>
+        </tr>
+        <tr>
+          <td>Job title</td>
+          <td><input name="title_1" /></td>
+        </tr>
+      </table>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Degree</th>
+            <th>School</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><input name="edu_0_a" /></td>
+            <td><input name="edu_0_b" /></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="row">
+        <div class="label">Current salary</div>
+        <div class="control"><input name="x7" inputmode="numeric" /></div>
+      </div>
+
+      <dl>
+        <dt>Notice period</dt>
+        <dd><input name="q_19" /></dd>
+      </dl>
+
+      <p>Expected start date: <input type="date" name="q_20" /></p>
+
+      <h2>About you</h2>
+      <input placeholder="Website" name="w1" />
+      <input placeholder="e.g. Acme Corp" name="previousEmployer" />
+      <input title="Middle name" name="mn" />
+      <input aria-label="Preferred name" name="pn" />
+
+      <span id="phone-label">Phone</span>
+      <span id="phone-kind">(mobile)</span>
+      <input aria-labelledby="phone-label phone-kind" type="tel" name="p1" />
+
+      <input name="applicant[linkedin_url]" type="url" />
+
+      <label for="city">City <span aria-hidden="true">*</span></label>
+      <input id="city" name="city" />
+
+      <label for="zip">Postal code <span class="sr-only">(required)</span></label>
+      <input id="zip" name="zip" aria-describedby="zip-help" />
+      <small id="zip-help">Used to show nearby offices.</small>
+
+      <fieldset>
+        <legend>Date of birth</legend>
+        <input type="date" name="dob" />
+      </fieldset>
+
+      <label for="ref-code">Referral code</label>
+      <input id="ref-code" name="refCode" readonly value="R-2048" />
+
+      <fieldset disabled>
+        <legend>Office use</legend>
+        <label for="office-notes">Office notes</label>
+        <input id="office-notes" name="officeNotes" />
+      </fieldset>
+
+      <h2>Account</h2>
+      <label for="password">Create a password</label>
+      <input id="password" type="password" name="password" />
+
+      <label for="otp">Verification code</label>
+      <input id="otp" name="otp" autocomplete="one-time-code" />
+
+      <input id=":r5:" />
+
+      <div aria-hidden="true" style="position: absolute; left: -9999px">
+        <label for="website-trap">Leave this empty</label>
+        <input id="website-trap" name="website" tabindex="-1" autocomplete="off" />
+      </div>
+    </form>
+    <script>
+      document.getElementById('password').value = 'not-a-real-secret'
+    </script>
+  </body>
+</html>

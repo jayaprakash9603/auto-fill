@@ -1,5 +1,6 @@
 export { AutofillPanel, type AutofillPanelProps } from './components/autofill-panel'
 export { AutofillRoot, type AutofillRootProps } from './components/autofill-root'
+export { FieldList, type FieldListProps } from './components/field-list'
 export { ConnectionBadge, PortalStatus } from './components/portal-status'
 export {
   EmptyState,

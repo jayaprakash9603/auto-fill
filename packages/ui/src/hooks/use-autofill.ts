@@ -1,7 +1,14 @@
 import type { AutofillController, AutofillHost, AutofillState } from '@ufa/autofill-sdk'
 import { useEffect, useMemo, useSyncExternalStore } from 'react'
 
-const DETACHED_STATE: AutofillState = { status: 'idle', page: null, error: null }
+const DETACHED_STATE: AutofillState = {
+  status: 'idle',
+  page: null,
+  error: null,
+  fields: [],
+  scanning: false,
+  scannedAt: null,
+}
 const noopSubscribe = () => () => {}
 const getNull = () => null
 

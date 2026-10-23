@@ -1,7 +1,13 @@
 import { createAutofill, type AutofillHost } from '@ufa/autofill-sdk'
-import { AutofillError, type PageDriver, type PageEvent, type PageInfo } from '@ufa/core'
+import {
+  AutofillError,
+  type FieldDescriptor,
+  type PageDriver,
+  type PageEvent,
+  type PageInfo,
+} from '@ufa/core'
 import { createMemoryStorage } from '@ufa/storage'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { StrictMode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -20,12 +26,94 @@ const PAGE: PageInfo = {
   runtimeVersion: '0.1.0',
 }
 
-function fakeDriver(connect: () => Promise<PageInfo>) {
+function field(overrides: Partial<FieldDescriptor> & Pick<FieldDescriptor, 'id' | 'label'>) {
+  const base: FieldDescriptor = {
+    id: overrides.id,
+    fingerprint: `fp-${overrides.id}`,
+    frameId: 0,
+    order: 0,
+    type: 'text',
+    label: overrides.label,
+    normalizedLabel: overrides.label.toLowerCase(),
+    labelSource: 'label-for',
+    semanticKey: null,
+    semanticConfidence: 0,
+    placeholder: null,
+    name: null,
+    htmlId: null,
+    autocomplete: null,
+    inputMode: null,
+    maxLength: null,
+    aria: {
+      role: null,
+      label: null,
+      description: null,
+      required: false,
+      invalid: false,
+      expanded: null,
+      controls: null,
+    },
+    section: 'Personal information',
+    formTitle: 'Engineer application',
+    required: false,
+    visible: true,
+    editable: true,
+    hasValue: false,
+    currentValue: null,
+    options: [],
+    multiple: false,
+    sensitivity: 'normal',
+    sensitivityReason: null,
+    support: 'supported',
+    unsupportedReason: null,
+    detectorId: 'ufa.native-controls',
+    detectionConfidence: 1,
+    portalAdapterId: null,
+    inShadowRoot: false,
+  }
+  return { ...base, ...overrides }
+}
+
+const FIELDS: FieldDescriptor[] = [
+  field({ id: 'a', label: 'First name', order: 0, required: true }),
+  field({ id: 'b', label: 'Email', order: 1, type: 'email', hasValue: true }),
+  field({
+    id: 'c',
+    label: 'Create a password',
+    order: 2,
+    type: 'password',
+    section: 'Account',
+    sensitivity: 'prohibited',
+    sensitivityReason: 'password',
+  }),
+  field({
+    id: 'd',
+    label: 'I agree to the terms',
+    order: 3,
+    type: 'checkbox',
+    section: null,
+    sensitivity: 'consent',
+  }),
+  field({
+    id: 'e',
+    label: 'Salary expectation',
+    order: 4,
+    type: 'range',
+    section: null,
+    labelSource: 'adjacent-text',
+    support: 'unsupported',
+    unsupportedReason: 'Sliders are not supported yet.',
+  }),
+  field({ id: 'f', label: 'LinkedIn profile', frameId: 1, type: 'url', section: null }),
+]
+
+function fakeDriver(connect: () => Promise<PageInfo>, fields: FieldDescriptor[] = FIELDS) {
   const listeners = new Set<(event: PageEvent) => void>()
   const driver: PageDriver & { emit(event: PageEvent): void; disposed: number } = {
     kind: 'test',
     disposed: 0,
     connect: vi.fn(connect),
+    scan: vi.fn(async () => ({ page: PAGE, fields, scannedAt: 1 })),
     subscribe(listener) {
       listeners.add(listener)
       return () => listeners.delete(listener)
@@ -144,6 +232,55 @@ describe('AutofillPanel', () => {
     const driver = fakeDriver(async () => PAGE)
     render(<AutofillPanel host={hostFor(driver)} messages={{ 'panel.title': 'Autorrelleno' }} />)
     expect(await screen.findByText('Autorrelleno')).toBeInTheDocument()
+  })
+
+  it('lists detected fields by section with safety and support badges', async () => {
+    const driver = fakeDriver(async () => PAGE)
+    render(<AutofillPanel host={hostFor(driver)} />)
+    const list = await screen.findByRole('region', { name: 'Detected fields' })
+    expect(within(list).getByText('6 fields')).toBeInTheDocument()
+
+    const personal = within(list).getByRole('group', { name: 'Personal information' })
+    expect(within(personal).getByText('First name')).toBeInTheDocument()
+    expect(within(personal).getByText('(required)', { exact: false })).toBeInTheDocument()
+    expect(within(personal).getByText('Has value')).toBeInTheDocument()
+
+    const account = within(list).getByRole('group', { name: 'Account' })
+    expect(within(account).getByText('Protected')).toHaveAttribute(
+      'title',
+      'Never read or filled: password',
+    )
+
+    const form = within(list).getAllByRole('group', { name: 'Engineer application' })
+    expect(form).toHaveLength(2)
+    expect(within(form[0]!).getByText('Needs your OK')).toBeInTheDocument()
+    expect(within(form[0]!).getByText('Unsupported')).toBeInTheDocument()
+    expect(within(form[0]!).getByText('Sliders are not supported yet.')).toBeInTheDocument()
+    expect(within(form[0]!).getByText('Slider · label from nearby text')).toBeInTheDocument()
+    expect(within(form[1]!).getByText('Embedded frame')).toBeInTheDocument()
+    expect(within(form[1]!).getByText('LinkedIn profile')).toBeInTheDocument()
+  })
+
+  it('updates the list when the page reports new fields for a frame', async () => {
+    const driver = fakeDriver(async () => PAGE, [])
+    render(<AutofillPanel host={hostFor(driver)} />)
+    expect(await screen.findByText('No form fields found')).toBeInTheDocument()
+    act(() =>
+      driver.emit({
+        type: 'fields-changed',
+        frameId: 0,
+        fields: [field({ id: 'n', label: 'Portfolio URL', type: 'url', section: 'Step 2' })],
+      }),
+    )
+    expect(await screen.findByText('Portfolio URL')).toBeInTheDocument()
+    expect(screen.getByText('1 field')).toBeInTheDocument()
+  })
+
+  it('keeps the heading for assistive technology only when embedded', async () => {
+    const driver = fakeDriver(async () => PAGE)
+    render(<AutofillPanel host={hostFor(driver)} embedded />)
+    const heading = await screen.findByRole('heading', { name: 'Form Autofill', level: 2 })
+    expect(heading).toHaveClass('ufa:sr-only')
   })
 })
 

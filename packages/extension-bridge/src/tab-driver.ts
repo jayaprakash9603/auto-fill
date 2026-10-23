@@ -8,10 +8,13 @@ import {
 } from '@ufa/autofill-sdk'
 import {
   AutofillError,
+  scanRequestSchema,
   throwIfAborted,
+  type FieldDescriptor,
   type PageDriver,
   type PageEvent,
   type PageInfo,
+  type ScanResult,
 } from '@ufa/core'
 
 import type { ChromeLike, MessageSenderLike, TabLike } from './chrome-like'
@@ -23,8 +26,10 @@ export interface ExtensionTabDriverOptions {
   contentScriptFile: string
   /** Fixed tab, or a resolver. Defaults to the active web tab of the last focused window. */
   tabId?: number | (() => number | undefined | Promise<number | undefined>)
-  /** How long to wait for each frame to answer. */
+  /** How long to wait for each frame to answer a ping. */
   pingTimeoutMs?: number
+  /** How long to wait for each frame to finish a field scan. */
+  scanTimeoutMs?: number
 }
 
 export interface ExtensionTabDriver extends PageDriver {
@@ -58,6 +63,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout: () => Error)
 export function createExtensionTabDriver(options: ExtensionTabDriverOptions): ExtensionTabDriver {
   const { chrome } = options
   const pingTimeout = options.pingTimeoutMs ?? 2_500
+  const scanTimeout = options.scanTimeoutMs ?? 10_000
   const listeners = new Set<(event: PageEvent) => void>()
   let tabId: number | null = null
   let tabUrl: string | undefined
@@ -77,16 +83,20 @@ export function createExtensionTabDriver(options: ExtensionTabDriverOptions): Ex
     type: T,
     payload: object,
     frameId: number,
+    timeoutMs = pingTimeout,
   ): Promise<RuntimeResponseData<T>> => {
     if (tabId == null) throw new AutofillError('NO_TAB', 'Not connected to a tab.')
     const request = createRequest(type, payload as never)
     const raw = await withTimeout(
       chrome.tabs.sendMessage(tabId, request, { frameId }),
-      pingTimeout,
+      timeoutMs,
       () => new AutofillError('CONTENT_UNAVAILABLE', 'The page did not respond in time.'),
     )
     return readResponse(type, raw)
   }
+
+  const withFrame = (fields: readonly FieldDescriptor[], frameId: number): FieldDescriptor[] =>
+    fields.map((field) => ({ ...field, frameId }))
 
   const inject = async (target: number, url: string | undefined): Promise<number[]> => {
     const files = [options.contentScriptFile]
@@ -114,7 +124,14 @@ export function createExtensionTabDriver(options: ExtensionTabDriverOptions): Ex
       if (!isProtocolMessage(message) || message.kind !== 'event') return
       if (sender.tab?.id == null || sender.tab.id !== tabId) return
       const parsed = runtimeEventEnvelopeSchema.safeParse(message)
-      if (parsed.success) emit(parsed.data.event)
+      if (!parsed.success) return
+      const { event } = parsed.data
+      if (event.type === 'fields-changed') {
+        const frameId = sender.frameId ?? 0
+        emit({ type: 'fields-changed', frameId, fields: withFrame(event.fields, frameId) })
+      } else {
+        emit(event)
+      }
     }
     const onUpdated = (
       updatedTabId: number,
@@ -192,6 +209,33 @@ export function createExtensionTabDriver(options: ExtensionTabDriverOptions): Ex
           'The page runtime did not start. Reload the page and try again.',
         )
       return { ...top[1], frameCount: reachable.length }
+    },
+    async scan(request, signal) {
+      if (disposed) throw new AutofillError('DESTROYED', 'The tab driver was disposed.')
+      if (tabId == null || frameIds.length === 0)
+        throw new AutofillError('CONTENT_UNAVAILABLE', 'Connect to the page before scanning.')
+      const normalized = scanRequestSchema.parse(request ?? {})
+      const results = await Promise.all(
+        frameIds.map((frameId) =>
+          send('scan', { request: normalized }, frameId, scanTimeout).then(
+            (result): [number, ScanResult] => [frameId, result],
+            () => null,
+          ),
+        ),
+      )
+      throwIfAborted(signal)
+      const answered = results.filter((entry): entry is [number, ScanResult] => entry !== null)
+      const top = answered.find(([frameId]) => frameId === 0) ?? answered[0]
+      if (!top)
+        throw new AutofillError(
+          'CONTENT_UNAVAILABLE',
+          'The page stopped responding. Reload the page and try again.',
+        )
+      return {
+        page: { ...top[1].page, frameCount: frameIds.length },
+        fields: answered.flatMap(([frameId, result]) => withFrame(result.fields, frameId)),
+        scannedAt: Math.max(...answered.map(([, result]) => result.scannedAt)),
+      }
     },
     subscribe(listener) {
       listeners.add(listener)

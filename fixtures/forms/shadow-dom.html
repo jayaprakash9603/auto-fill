@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Shadow DOM application</title>
+  </head>
+  <body>
+    <h1>Component library application</h1>
+    <form id="components">
+      <h2>Contact</h2>
+      <ufa-text-field label="Full name" name="fullName" required></ufa-text-field>
+      <ufa-text-field label="Email" name="email" type="email"></ufa-text-field>
+
+      <h2>Address</h2>
+      <ufa-address></ufa-address>
+
+      <ufa-choice question="Are you at least 18 years old?" name="adult"></ufa-choice>
+
+      <ufa-closed-field label="Closed component"></ufa-closed-field>
+
+      <label for="notes">Notes</label>
+      <textarea id="notes" name="notes"></textarea>
+    </form>
+    <script>
+      class TextField extends HTMLElement {
+        connectedCallback() {
+          if (this.shadowRoot) return
+          const root = this.attachShadow({ mode: 'open' })
+          const required = this.hasAttribute('required') ? ' required' : ''
+          root.innerHTML = `
+            <div class="field">
+              <label for="control">${this.getAttribute('label')}${required ? ' *' : ''}</label>
+              <input id="control" name="${this.getAttribute('name')}" type="${this.getAttribute('type') ?? 'text'}"${required} />
+            </div>`
+        }
+      }
+      class Address extends HTMLElement {
+        connectedCallback() {
+          if (this.shadowRoot) return
+          const root = this.attachShadow({ mode: 'open' })
+          root.innerHTML = `
+            <ufa-text-field label="City" name="city"></ufa-text-field>
+            <ufa-text-field label="Postal code" name="postalCode"></ufa-text-field>`
+        }
+      }
+      class Choice extends HTMLElement {
+        connectedCallback() {
+          if (this.shadowRoot) return
+          const root = this.attachShadow({ mode: 'open' })
+          const name = this.getAttribute('name')
+          root.innerHTML = `
+            <fieldset>
+              <legend>${this.getAttribute('question')}</legend>
+              <label><input type="radio" name="${name}" value="yes" /> Yes</label>
+              <label><input type="radio" name="${name}" value="no" /> No</label>
+            </fieldset>`
+        }
+      }
+      class ClosedField extends HTMLElement {
+        connectedCallback() {
+          if (this.closedRoot) return
+          this.closedRoot = this.attachShadow({ mode: 'closed' })
+          this.closedRoot.innerHTML = `<label for="c">${this.getAttribute('label')}</label><input id="c" />`
+        }
+      }
+      customElements.define('ufa-text-field', TextField)
+      customElements.define('ufa-address', Address)
+      customElements.define('ufa-choice', Choice)
+      customElements.define('ufa-closed-field', ClosedField)
+    </script>
+  </body>
+</html>

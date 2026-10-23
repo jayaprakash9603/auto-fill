@@ -5,7 +5,7 @@ dependencies. React 18.2+ or 19 is a peer dependency, only needed for `/react`.
 
 | Import                                           | Contents                                                        |
 | ------------------------------------------------ | --------------------------------------------------------------- |
-| `@universal-form-autofill/sdk`                   | Headless controller, domain types, plugin registry, storage     |
+| `@universal-form-autofill/sdk`                   | Headless controller, field scanner, plugin registry, storage    |
 | `@universal-form-autofill/sdk/react`             | `AutofillPanel`, `AutofillRoot`, theming, hooks                 |
 | `@universal-form-autofill/sdk/extension`         | `createExtensionAutofillHost` for side panels and popups        |
 | `@universal-form-autofill/sdk/content`           | The page runtime, for hosts that ship their own content script  |

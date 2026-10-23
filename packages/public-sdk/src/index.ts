@@ -17,6 +17,17 @@ export {
 } from '@ufa/autofill-sdk'
 
 export {
+  ariaWidgetsDetector,
+  BUILTIN_DETECTORS,
+  contentEditableDetector,
+  createFieldScanner,
+  nativeControlsDetector,
+  type FieldScanner,
+  type FieldScannerOptions,
+  type ScannedField,
+} from '@ufa/field-detection'
+
+export {
   AUTOFILL_ERROR_CODES,
   AUTOFILL_MODES,
   AutofillError,
@@ -51,7 +62,10 @@ export {
   type AutofillSettings,
   type ConfidenceLevel,
   type ConfidenceThresholds,
+  type DetectedControl,
+  type DetectionContext,
   type ExportBundle,
+  type FieldAria,
   type FieldDescriptor,
   type FieldDetector,
   type FieldOption,
@@ -61,6 +75,7 @@ export {
   type FieldValueValidator,
   type FormActionPolicy,
   type GeneratorProvider,
+  type LabelSource,
   type Logger,
   type LoggerOptions,
   type LogLevel,
@@ -75,6 +90,9 @@ export {
   type PortalAdapter,
   type PortalCapability,
   type Profile,
+  type ScanRequest,
+  type ScanRequestInput,
+  type ScanResult,
   type SemanticClassifier,
   type SemanticKeyDefinition,
   type StorageAdapter,
