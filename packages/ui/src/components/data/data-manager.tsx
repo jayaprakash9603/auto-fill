@@ -10,6 +10,7 @@ import { useId, useRef, useState } from 'react'
 
 import { useAction, useStoreSnapshot } from '../../hooks/use-store'
 import { useTranslate } from '../../i18n/messages'
+import { cn } from '../../lib/cn'
 import { Button } from '../ui/button'
 import { Checkbox, Input, Label } from '../ui/form-controls'
 import { Alert } from '../ui/misc'
@@ -28,21 +29,19 @@ export function DataManager({ store, className }: DataManagerProps) {
   const t = useTranslate()
   const snapshot = useStoreSnapshot(store)
   return (
-    <div className={className}>
-      <div className="ufa:flex ufa:flex-col ufa:gap-5">
-        {snapshot.issues.length ? (
-          <Alert tone="warning" icon={<AlertTriangleIcon />} title={t('store.issues')}>
-            <ul className="ufa:list-disc ufa:pl-4">
-              {snapshot.issues.map((issue) => (
-                <li key={issue.collection}>{issue.message}</li>
-              ))}
-            </ul>
-          </Alert>
-        ) : null}
-        <ExportSection store={store} />
-        <ImportSection store={store} />
-        <DeleteSection store={store} />
-      </div>
+    <div className={cn('ufa:flex ufa:flex-col ufa:gap-3', className)}>
+      {snapshot.issues.length ? (
+        <Alert tone="warning" icon={<AlertTriangleIcon />} title={t('store.issues')}>
+          <ul className="ufa:list-disc ufa:pl-4">
+            {snapshot.issues.map((issue) => (
+              <li key={issue.collection}>{issue.message}</li>
+            ))}
+          </ul>
+        </Alert>
+      ) : null}
+      <ExportSection store={store} />
+      <ImportSection store={store} />
+      <DeleteSection store={store} />
     </div>
   )
 }
@@ -55,9 +54,13 @@ function ExportSection({ store }: { store: AutofillStore }) {
   const root = useRef<HTMLDivElement>(null)
 
   return (
-    <Section title={t('data.exportTitle')} description={t('data.exportBody')}>
+    <Section
+      icon={<DownloadIcon />}
+      title={t('data.exportTitle')}
+      description={t('data.exportBody')}
+    >
       <div ref={root} className="ufa:flex ufa:flex-wrap ufa:items-center ufa:gap-3">
-        <div className="ufa:flex ufa:items-center ufa:gap-2">
+        <div className="ufa:flex ufa:flex-1 ufa:items-center ufa:gap-2">
           <Checkbox
             id={checkboxId}
             checked={includeSettings}
@@ -137,7 +140,7 @@ function ImportSection({ store }: { store: AutofillStore }) {
     report.profiles.updated + report.answers.updated + report.customFields.updated
 
   return (
-    <Section title={t('data.importTitle')} description={t('data.importBody')}>
+    <Section icon={<UploadIcon />} title={t('data.importTitle')} description={t('data.importBody')}>
       <div className="ufa:flex ufa:flex-col ufa:gap-1.5">
         <Label htmlFor={inputId}>{t('data.file')}</Label>
         <Input
@@ -261,11 +264,16 @@ function DeleteSection({ store }: { store: AutofillStore }) {
   const [done, setDone] = useState(false)
 
   return (
-    <Section title={t('data.deleteTitle')} description={t('data.deleteBody')}>
+    <Section
+      tone="destructive"
+      icon={<Trash2Icon />}
+      title={t('data.deleteTitle')}
+      description={t('data.deleteBody')}
+    >
       <Button
         size="sm"
         variant="outline"
-        className="ufa:self-start ufa:text-destructive"
+        className="ufa:self-start ufa:border-destructive/40 ufa:text-destructive ufa:hover:bg-destructive/10 ufa:hover:text-destructive"
         onClick={() => {
           setDone(false)
           setConfirming(true)

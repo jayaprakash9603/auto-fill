@@ -10,11 +10,21 @@ import {
   type AnswerScope,
   type AutofillStore,
 } from '@ufa/storage'
-import { CopyIcon, PencilIcon, PlusIcon, SearchXIcon, StarIcon, Trash2Icon } from 'lucide-react'
+import {
+  CopyIcon,
+  MessageSquareTextIcon,
+  PencilIcon,
+  PlusIcon,
+  SearchIcon,
+  SearchXIcon,
+  StarIcon,
+  Trash2Icon,
+} from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { useAction, useStoreSnapshot } from '../../hooks/use-store'
 import { useTranslate } from '../../i18n/messages'
+import { cn } from '../../lib/cn'
 import { EmptyState } from '../states'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
@@ -22,7 +32,15 @@ import { Checkbox, Input } from '../ui/form-controls'
 import { SimpleSelect } from '../ui/select'
 import { Alert } from '../ui/misc'
 import { AnswerEditor } from './answer-editor'
-import { categoryOptions, ConfirmDialog, ErrorMessage, scopeLabel, Section } from './shared'
+import {
+  categoryOptions,
+  ConfirmDialog,
+  ErrorMessage,
+  scopeLabel,
+  Section,
+  SECTION_ROW,
+  SECTION_ROWS,
+} from './shared'
 
 const GLOBAL = '__global__'
 const ALL = '__all__'
@@ -91,54 +109,61 @@ export function AnswerLibrary({ store, className }: AnswerLibraryProps) {
 
   const duplicateCount = duplicates.duplicates.reduce((sum, group) => sum + group.length, 0)
   const defaultScope = scope === ALL || scope === GLOBAL ? null : scope
+  const hasAnswers = snapshot.answers.length > 0
 
   return (
     <Section
       className={className}
+      icon={<MessageSquareTextIcon />}
       title={t('answers.title')}
-      description={
-        snapshot.answers.length === 1
-          ? t('answers.countOne')
-          : t('answers.count', { count: snapshot.answers.length })
-      }
+      count={snapshot.answers.length}
       actions={
         <Button size="sm" onClick={() => setEditing('new')}>
           <PlusIcon /> {t('answers.add')}
         </Button>
       }
     >
-      <div className="ufa:flex ufa:flex-col ufa:gap-2">
-        <Input
-          type="search"
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          placeholder={t('answers.search')}
-          aria-label={t('answers.search')}
-        />
-        <div className="ufa:grid ufa:grid-cols-2 ufa:gap-2">
-          <SimpleSelect
-            aria-label={t('answers.scope')}
-            value={scope}
-            onValueChange={setScope}
-            className="ufa:h-8"
-            options={[
-              { value: ALL, label: t('answers.scopeAll') },
-              { value: GLOBAL, label: t('answers.scopeGlobal') },
-              ...snapshot.profiles.map((profile) => ({
-                value: profile.id,
-                label: t('answers.scopeProfile', { name: profile.name }),
-              })),
-            ]}
-          />
-          <SimpleSelect
-            aria-label={t('answers.category')}
-            value={category}
-            onValueChange={(next) => setCategory(next as AnswerCategory | '')}
-            className="ufa:h-8"
-            options={[{ value: '', label: t('answers.categoryAll') }, ...categoryOptions(t)]}
-          />
+      {hasAnswers ? (
+        <div className="ufa:flex ufa:flex-col ufa:gap-2">
+          <div className="ufa:relative">
+            <SearchIcon
+              aria-hidden
+              className="ufa:pointer-events-none ufa:absolute ufa:top-1/2 ufa:left-2.5 ufa:size-4 ufa:-translate-y-1/2 ufa:text-muted-foreground"
+            />
+            <Input
+              type="search"
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+              placeholder={t('answers.search')}
+              aria-label={t('answers.search')}
+              className="ufa:h-8 ufa:pl-8"
+            />
+          </div>
+          <div className="ufa:grid ufa:grid-cols-2 ufa:gap-2">
+            <SimpleSelect
+              aria-label={t('answers.scope')}
+              value={scope}
+              onValueChange={setScope}
+              className="ufa:h-8"
+              options={[
+                { value: ALL, label: t('answers.scopeAll') },
+                { value: GLOBAL, label: t('answers.scopeGlobal') },
+                ...snapshot.profiles.map((profile) => ({
+                  value: profile.id,
+                  label: t('answers.scopeProfile', { name: profile.name }),
+                })),
+              ]}
+            />
+            <SimpleSelect
+              aria-label={t('answers.category')}
+              value={category}
+              onValueChange={(next) => setCategory(next as AnswerCategory | '')}
+              className="ufa:h-8"
+              options={[{ value: '', label: t('answers.categoryAll') }, ...categoryOptions(t)]}
+            />
+          </div>
         </div>
-      </div>
+      ) : null}
 
       {duplicateCount ? (
         <Alert
@@ -166,36 +191,46 @@ export function AnswerLibrary({ store, className }: AnswerLibraryProps) {
         <div
           role="toolbar"
           aria-label={t('answers.selected', { count: selectedIds.length })}
-          className="ufa:flex ufa:flex-wrap ufa:items-center ufa:gap-2 ufa:rounded-md ufa:border ufa:border-border ufa:bg-muted/50 ufa:p-2"
+          className="ufa:flex ufa:flex-col ufa:gap-2 ufa:rounded-lg ufa:border ufa:border-primary/25 ufa:bg-primary/5 ufa:p-2"
         >
-          <span className="ufa:text-xs ufa:font-medium">
-            {t('answers.selected', { count: selectedIds.length })}
-          </span>
-          <SimpleSelect
-            aria-label={t('answers.moveTo')}
-            value={moveTo}
-            onValueChange={setMoveTo}
-            className="ufa:h-8 ufa:w-auto ufa:flex-1"
-            options={[
-              { value: GLOBAL, label: t('answers.allProfiles') },
-              ...snapshot.profiles.map((profile) => ({ value: profile.id, label: profile.name })),
-            ]}
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={action.pending}
-            onClick={() =>
-              void action.run(() =>
-                store.answers.bulkUpdate(selectedIds, {
-                  profileId: moveTo === GLOBAL ? null : moveTo,
-                }),
-              )
-            }
-          >
-            {t('answers.move')}
-          </Button>
-          <div className="ufa:flex ufa:w-full ufa:gap-2">
+          <div className="ufa:flex ufa:items-center ufa:gap-2">
+            <span className="ufa:flex-1 ufa:text-xs ufa:font-semibold">
+              {t('answers.selected', { count: selectedIds.length })}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ufa:text-destructive ufa:hover:bg-destructive/10 ufa:hover:text-destructive"
+              onClick={() => setDeleting(selectedIds)}
+            >
+              <Trash2Icon /> {t('answers.deleteSelected')}
+            </Button>
+          </div>
+          <div className="ufa:grid ufa:grid-cols-[minmax(0,1fr)_5.5rem] ufa:gap-2">
+            <SimpleSelect
+              aria-label={t('answers.moveTo')}
+              value={moveTo}
+              onValueChange={setMoveTo}
+              className="ufa:h-8"
+              options={[
+                { value: GLOBAL, label: t('answers.allProfiles') },
+                ...snapshot.profiles.map((profile) => ({ value: profile.id, label: profile.name })),
+              ]}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={action.pending}
+              onClick={() =>
+                void action.run(() =>
+                  store.answers.bulkUpdate(selectedIds, {
+                    profileId: moveTo === GLOBAL ? null : moveTo,
+                  }),
+                )
+              }
+            >
+              {t('answers.move')}
+            </Button>
             <Input
               value={tag}
               onChange={(event) => setTag(event.target.value)}
@@ -216,24 +251,22 @@ export function AnswerLibrary({ store, className }: AnswerLibraryProps) {
             >
               {t('answers.addTag')}
             </Button>
-            <Button variant="destructive" size="sm" onClick={() => setDeleting(selectedIds)}>
-              <Trash2Icon /> {t('answers.deleteSelected')}
-            </Button>
           </div>
         </div>
       ) : null}
 
-      {snapshot.answers.length === 0 ? (
+      {!hasAnswers ? (
         <EmptyState
-          className="ufa:py-6"
+          className="ufa:py-5"
+          icon={<MessageSquareTextIcon />}
           title={t('answers.emptyTitle')}
           description={t('answers.emptyBody')}
         />
       ) : shown.length === 0 ? (
-        <EmptyState className="ufa:py-6" icon={<SearchXIcon />} title={t('answers.noResults')} />
+        <EmptyState className="ufa:py-5" icon={<SearchXIcon />} title={t('answers.noResults')} />
       ) : (
-        <>
-          <label className="ufa:flex ufa:items-center ufa:gap-2 ufa:px-1 ufa:text-xs ufa:text-muted-foreground">
+        <div className="ufa:-mx-3 ufa:-mb-3 ufa:border-t ufa:border-border">
+          <label className="ufa:flex ufa:cursor-pointer ufa:items-center ufa:gap-2.5 ufa:border-b ufa:border-border ufa:bg-muted/40 ufa:px-3 ufa:py-1.5 ufa:text-xs ufa:text-muted-foreground">
             <Checkbox
               checked={allShownSelected}
               onCheckedChange={(checked) =>
@@ -242,12 +275,12 @@ export function AnswerLibrary({ store, className }: AnswerLibraryProps) {
                 )
               }
             />
-            {t('answers.selectAll')}
+            <span className="ufa:flex-1">{t('answers.selectAll')}</span>
+            <span aria-hidden className="ufa:tabular-nums">
+              {shown.length}
+            </span>
           </label>
-          <ul
-            aria-label={t('answers.title')}
-            className="ufa:flex ufa:flex-col ufa:divide-y ufa:divide-border ufa:rounded-md ufa:border ufa:border-border"
-          >
+          <ul aria-label={t('answers.title')} className={SECTION_ROWS}>
             {shown.map((answer) => {
               const field = fieldName(answer)
               const contextual =
@@ -259,7 +292,11 @@ export function AnswerLibrary({ store, className }: AnswerLibraryProps) {
                 <li
                   key={answer.id}
                   data-answer-id={answer.id}
-                  className="ufa:flex ufa:items-start ufa:gap-2 ufa:px-2.5 ufa:py-2"
+                  className={cn(
+                    SECTION_ROW,
+                    'ufa:items-start',
+                    selected.has(answer.id) && 'ufa:bg-primary/5',
+                  )}
                 >
                   <Checkbox
                     className="ufa:mt-0.5"
@@ -305,29 +342,33 @@ export function AnswerLibrary({ store, className }: AnswerLibraryProps) {
                       ) : null}
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setEditing(answer)}
-                    aria-label={t('answers.editLabel', { label: answer.label })}
-                    title={t('common.edit')}
-                  >
-                    <PencilIcon />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setDeleting([answer.id])}
-                    aria-label={t('answers.deleteLabel', { label: answer.label })}
-                    title={t('common.delete')}
-                  >
-                    <Trash2Icon />
-                  </Button>
+                  <div className="ufa:-my-1 ufa:flex ufa:shrink-0 ufa:items-center">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="ufa:text-muted-foreground"
+                      onClick={() => setEditing(answer)}
+                      aria-label={t('answers.editLabel', { label: answer.label })}
+                      title={t('common.edit')}
+                    >
+                      <PencilIcon />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="ufa:text-muted-foreground ufa:hover:bg-destructive/10 ufa:hover:text-destructive"
+                      onClick={() => setDeleting([answer.id])}
+                      aria-label={t('answers.deleteLabel', { label: answer.label })}
+                      title={t('common.delete')}
+                    >
+                      <Trash2Icon />
+                    </Button>
+                  </div>
                 </li>
               )
             })}
           </ul>
-        </>
+        </div>
       )}
 
       <AnswerEditor

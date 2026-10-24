@@ -5,8 +5,8 @@ import {
   type AutofillSettingsInput,
 } from '@ufa/core'
 import type { AutofillStore } from '@ufa/storage'
-import { PlusIcon, XIcon } from 'lucide-react'
-import { useId, useState, type FormEvent } from 'react'
+import { PlusIcon, ShieldCheckIcon, SlidersHorizontalIcon, XIcon } from 'lucide-react'
+import { useId, useState, type FormEvent, type ReactNode } from 'react'
 
 import { useAction, useStoreSnapshot } from '../../hooks/use-store'
 import { useTranslate } from '../../i18n/messages'
@@ -15,6 +15,7 @@ import { Button } from '../ui/button'
 import { Input, Label, Switch } from '../ui/form-controls'
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group'
 import { SimpleSelect } from '../ui/select'
+import { Section } from './shared'
 
 const HOST = /^(\*\.)?([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)*[a-z0-9]([a-z0-9-]*[a-z0-9])?$/
 const MIN_CONFIDENCE_CHOICES = [0.9, 0.95, 0.98] as const
@@ -38,6 +39,33 @@ export interface FillSettingsProps {
   /** The site of the connected page, offered as a one-click trusted site. */
   currentSite?: string | null
   className?: string
+}
+
+/** A label and hint on the left, its switch on the right. */
+function SwitchRow({
+  id,
+  label,
+  hint,
+  children,
+}: {
+  id: string
+  label: ReactNode
+  hint: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <div className="ufa:flex ufa:items-start ufa:gap-3 ufa:border-t ufa:border-border ufa:px-3 ufa:py-2.5">
+      <div className="ufa:flex ufa:min-w-0 ufa:flex-1 ufa:flex-col ufa:gap-0.5">
+        <Label htmlFor={id} className="ufa:text-[13px]">
+          {label}
+        </Label>
+        <p id={`${id}-hint`} className="ufa:text-xs ufa:text-muted-foreground">
+          {hint}
+        </p>
+      </div>
+      {children}
+    </div>
+  )
 }
 
 /** Mode, overwriting and trusted sites: everything that decides which fields may be filled. */
@@ -69,114 +97,122 @@ export function FillSettings({ store, currentSite, className }: FillSettingsProp
   const current = currentSite ? normalizeSite(currentSite) : null
 
   return (
-    <section
-      data-slot="fill-settings"
-      aria-labelledby={`${ids.hint}-title`}
-      className={cn('ufa:flex ufa:flex-col ufa:gap-4', className)}
-    >
-      <h3 id={`${ids.hint}-title`} className="ufa:text-sm ufa:font-semibold">
-        {t('settings.title')}
-      </h3>
-
-      <div className="ufa:flex ufa:flex-col ufa:gap-2">
-        <span id={`${ids.hint}-mode`} className="ufa:text-xs ufa:font-medium">
-          {t('settings.mode')}
-        </span>
-        <RadioGroup
-          aria-labelledby={`${ids.hint}-mode`}
-          value={settings.mode}
-          onValueChange={(mode) => update({ mode: mode as AutofillMode })}
-        >
-          {AUTOFILL_MODES.map((mode) => {
-            const itemId = `${ids.hint}-mode-${mode}`
-            return (
-              <Label
-                key={mode}
-                htmlFor={itemId}
-                className={cn(
-                  'ufa:cursor-pointer ufa:items-start ufa:gap-2 ufa:rounded-md ufa:border ufa:border-border ufa:px-3 ufa:py-2 ufa:font-normal ufa:transition-colors ufa:hover:bg-accent/30',
-                  settings.mode === mode && 'ufa:border-primary ufa:bg-accent/40',
-                )}
-              >
-                <RadioGroupItem
-                  id={itemId}
-                  value={mode}
-                  className="ufa:mt-0.5"
-                  aria-labelledby={`${itemId}-title`}
-                  aria-describedby={`${itemId}-hint`}
-                />
-                <span className="ufa:flex ufa:flex-col">
-                  <span id={`${itemId}-title`} className="ufa:text-sm ufa:font-medium">
-                    {t(`mode.${mode}`)}
+    <div data-slot="fill-settings" className={cn('ufa:flex ufa:flex-col ufa:gap-3', className)}>
+      <Section
+        icon={<SlidersHorizontalIcon />}
+        title={t('settings.title')}
+        bodyClassName="ufa:gap-0 ufa:p-0"
+      >
+        <div className="ufa:flex ufa:flex-col ufa:gap-2 ufa:p-3">
+          <span
+            id={`${ids.hint}-mode`}
+            className="ufa:text-xs ufa:font-medium ufa:text-muted-foreground"
+          >
+            {t('settings.mode')}
+          </span>
+          <RadioGroup
+            aria-labelledby={`${ids.hint}-mode`}
+            value={settings.mode}
+            className="ufa:gap-1.5"
+            onValueChange={(mode) => update({ mode: mode as AutofillMode })}
+          >
+            {AUTOFILL_MODES.map((mode) => {
+              const itemId = `${ids.hint}-mode-${mode}`
+              const checked = settings.mode === mode
+              return (
+                <Label
+                  key={mode}
+                  htmlFor={itemId}
+                  className={cn(
+                    'ufa:cursor-pointer ufa:items-start ufa:gap-2.5 ufa:rounded-lg ufa:border ufa:px-3 ufa:py-2 ufa:font-normal ufa:transition-colors',
+                    checked
+                      ? 'ufa:border-primary/60 ufa:bg-primary/5'
+                      : 'ufa:border-border ufa:hover:bg-muted/50',
+                  )}
+                >
+                  <RadioGroupItem
+                    id={itemId}
+                    value={mode}
+                    className="ufa:mt-0.5"
+                    aria-labelledby={`${itemId}-title`}
+                    aria-describedby={`${itemId}-hint`}
+                  />
+                  <span className="ufa:flex ufa:min-w-0 ufa:flex-col">
+                    <span id={`${itemId}-title`} className="ufa:text-[13px] ufa:font-medium">
+                      {t(`mode.${mode}`)}
+                    </span>
+                    <span id={`${itemId}-hint`} className="ufa:text-xs ufa:text-muted-foreground">
+                      {t(`mode.${mode}Hint`)}
+                    </span>
                   </span>
-                  <span id={`${itemId}-hint`} className="ufa:text-xs ufa:text-muted-foreground">
-                    {t(`mode.${mode}Hint`)}
-                  </span>
-                </span>
-              </Label>
-            )
-          })}
-        </RadioGroup>
-      </div>
+                </Label>
+              )
+            })}
+          </RadioGroup>
+        </div>
 
-      <div className="ufa:flex ufa:items-start ufa:gap-3">
-        <Switch
+        <SwitchRow
           id={`${ids.hint}-learning`}
-          checked={settings.learning.allowed}
-          onCheckedChange={(checked) => update({ learning: { allowed: checked } })}
-        />
-        <div className="ufa:flex ufa:flex-col ufa:gap-0.5">
-          <Label htmlFor={`${ids.hint}-learning`}>{t('settings.learning')}</Label>
-          <p className="ufa:text-xs ufa:text-muted-foreground">{t('settings.learningHint')}</p>
-        </div>
-      </div>
+          label={t('settings.learning')}
+          hint={t('settings.learningHint')}
+        >
+          <Switch
+            id={`${ids.hint}-learning`}
+            className="ufa:mt-0.5"
+            checked={settings.learning.allowed}
+            aria-describedby={`${ids.hint}-learning-hint`}
+            onCheckedChange={(checked) => update({ learning: { allowed: checked } })}
+          />
+        </SwitchRow>
 
-      <div className="ufa:flex ufa:items-start ufa:gap-3">
-        <Switch
+        <SwitchRow
           id={`${ids.hint}-synthetic`}
-          checked={settings.synthetic.enabled}
-          aria-label={t('settings.synthetic')}
-          onCheckedChange={(checked) =>
-            update({
-              synthetic: {
-                enabled: checked,
-                ...(checked && settings.synthetic.allowedCategories.length === 0
-                  ? { allowedCategories: [...SYNTHETIC_CATEGORIES] }
-                  : {}),
-              },
-            })
-          }
-        />
-        <div className="ufa:flex ufa:flex-col ufa:gap-0.5">
-          <Label htmlFor={`${ids.hint}-synthetic`}>{t('settings.synthetic')}</Label>
-          <p className="ufa:text-xs ufa:text-muted-foreground">{t('settings.syntheticHint')}</p>
-        </div>
-      </div>
+          label={t('settings.synthetic')}
+          hint={t('settings.syntheticHint')}
+        >
+          <Switch
+            id={`${ids.hint}-synthetic`}
+            className="ufa:mt-0.5"
+            checked={settings.synthetic.enabled}
+            aria-label={t('settings.synthetic')}
+            aria-describedby={`${ids.hint}-synthetic-hint`}
+            onCheckedChange={(checked) =>
+              update({
+                synthetic: {
+                  enabled: checked,
+                  ...(checked && settings.synthetic.allowedCategories.length === 0
+                    ? { allowedCategories: [...SYNTHETIC_CATEGORIES] }
+                    : {}),
+                },
+              })
+            }
+          />
+        </SwitchRow>
 
-      <div className="ufa:flex ufa:items-start ufa:gap-3">
-        <Switch
+        <SwitchRow
           id={ids.overwrite}
-          checked={settings.overwriteExisting}
-          onCheckedChange={(checked) => update({ overwriteExisting: checked })}
-          aria-describedby={`${ids.overwrite}-hint`}
-        />
-        <div className="ufa:flex ufa:flex-col ufa:gap-0.5">
-          <Label htmlFor={ids.overwrite}>{t('settings.overwrite')}</Label>
-          <p id={`${ids.overwrite}-hint`} className="ufa:text-xs ufa:text-muted-foreground">
-            {t('settings.overwriteHint')}
-          </p>
-        </div>
-      </div>
+          label={t('settings.overwrite')}
+          hint={t('settings.overwriteHint')}
+        >
+          <Switch
+            id={ids.overwrite}
+            className="ufa:mt-0.5"
+            checked={settings.overwriteExisting}
+            onCheckedChange={(checked) => update({ overwriteExisting: checked })}
+            aria-describedby={`${ids.overwrite}-hint`}
+          />
+        </SwitchRow>
+      </Section>
 
-      <div className="ufa:flex ufa:flex-col ufa:gap-2">
-        <h4 className="ufa:text-xs ufa:font-medium">{t('settings.trustedSites')}</h4>
-        <p id={ids.hint} className="ufa:text-xs ufa:text-muted-foreground">
-          {t('settings.trustedSitesHint')}
-        </p>
+      <Section
+        icon={<ShieldCheckIcon />}
+        title={t('settings.trustedSites')}
+        count={sites.length}
+        description={t('settings.trustedSitesHint')}
+        descriptionId={ids.hint}
+      >
         {sites.length === 0 ? (
-          <p className="ufa:text-xs ufa:text-muted-foreground ufa:italic">
-            {t('settings.trustedSitesEmpty')}
-          </p>
+          <p className="ufa:text-xs ufa:text-muted-foreground">{t('settings.trustedSitesEmpty')}</p>
         ) : (
           <ul
             aria-label={t('settings.trustedSites')}
@@ -185,13 +221,13 @@ export function FillSettings({ store, currentSite, className }: FillSettingsProp
             {sites.map((site) => (
               <li
                 key={site}
-                className="ufa:flex ufa:items-center ufa:gap-1 ufa:rounded-md ufa:border ufa:border-border ufa:py-0.5 ufa:pr-0.5 ufa:pl-2 ufa:font-mono ufa:text-xs"
+                className="ufa:flex ufa:items-center ufa:gap-0.5 ufa:rounded-full ufa:border ufa:border-border ufa:bg-muted/40 ufa:py-0.5 ufa:pr-0.5 ufa:pl-2.5 ufa:font-mono ufa:text-xs"
               >
                 {site}
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="ufa:size-6"
+                  className="ufa:size-6 ufa:rounded-full ufa:text-muted-foreground ufa:hover:text-foreground"
                   aria-label={t('settings.removeSite', { site })}
                   onClick={() =>
                     update({ trusted: { sites: sites.filter((entry) => entry !== site) } })
@@ -211,6 +247,7 @@ export function FillSettings({ store, currentSite, className }: FillSettingsProp
             <Input
               id={ids.site}
               value={draft}
+              className="ufa:h-8"
               placeholder={t('settings.sitePlaceholder')}
               aria-invalid={invalid || undefined}
               aria-describedby={invalid ? `${ids.site}-error` : ids.hint}
@@ -225,28 +262,29 @@ export function FillSettings({ store, currentSite, className }: FillSettingsProp
               </p>
             ) : null}
           </div>
-          <Button type="submit" variant="outline">
+          <Button type="submit" variant="outline" size="sm">
             <PlusIcon />
             {t('settings.addSite')}
           </Button>
         </form>
         {current && !sites.includes(current) ? (
           <Button
-            variant="link"
+            variant="outline"
             size="sm"
-            className="ufa:self-start ufa:px-0"
+            className="ufa:self-start ufa:border-dashed"
             onClick={() => addSite(current)}
           >
+            <PlusIcon />
             {t('fill.trustSite', { site: current })}
           </Button>
         ) : null}
-        <div className="ufa:flex ufa:items-center ufa:gap-2">
-          <Label htmlFor={ids.confidence} className="ufa:flex-1">
+        <div className="ufa:-mx-3 ufa:-mb-3 ufa:flex ufa:items-center ufa:gap-3 ufa:border-t ufa:border-border ufa:px-3 ufa:py-2.5">
+          <Label htmlFor={ids.confidence} className="ufa:flex-1 ufa:text-[13px]">
             {t('settings.minConfidence')}
           </Label>
           <SimpleSelect
             id={ids.confidence}
-            className="ufa:w-24"
+            className="ufa:h-8 ufa:w-24"
             value={String(settings.trusted.minConfidence)}
             onValueChange={(value) => update({ trusted: { minConfidence: Number(value) } })}
             options={[...new Set([...MIN_CONFIDENCE_CHOICES, settings.trusted.minConfidence])]
@@ -254,13 +292,13 @@ export function FillSettings({ store, currentSite, className }: FillSettingsProp
               .map((value) => ({ value: String(value), label: `${Math.round(value * 100)}%` }))}
           />
         </div>
-      </div>
+      </Section>
 
       {action.error ? (
         <p role="alert" className="ufa:text-xs ufa:text-destructive">
           {action.error}
         </p>
       ) : null}
-    </section>
+    </div>
   )
 }

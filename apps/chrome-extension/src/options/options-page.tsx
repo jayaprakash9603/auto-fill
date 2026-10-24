@@ -1,8 +1,6 @@
 import {
   AnswerLibrary,
   AutofillRoot,
-  Card,
-  CardContent,
   CustomFieldsManager,
   DataManager,
   ErrorState,
@@ -90,43 +88,23 @@ export function OptionsPage() {
           </TabsList>
           <TabsContent value="answers" className="ufa:flex ufa:flex-col ufa:gap-4">
             <StoreReady store={store}>
-              <Card>
-                <CardContent className="ufa:pt-4">
-                  <AnswerLibrary store={store} />
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="ufa:pt-4">
-                  <CustomFieldsManager store={store} />
-                </CardContent>
-              </Card>
+              <AnswerLibrary store={store} />
+              <CustomFieldsManager store={store} />
             </StoreReady>
           </TabsContent>
           <TabsContent value="profiles">
             <StoreReady store={store}>
-              <Card>
-                <CardContent className="ufa:pt-4">
-                  <ProfileManager store={store} />
-                </CardContent>
-              </Card>
+              <ProfileManager store={store} />
             </StoreReady>
           </TabsContent>
           <TabsContent value="filling">
             <StoreReady store={store}>
-              <Card>
-                <CardContent className="ufa:pt-4">
-                  <FillSettings store={store} />
-                </CardContent>
-              </Card>
+              <FillSettings store={store} />
             </StoreReady>
           </TabsContent>
           <TabsContent value="data">
             <StoreReady store={store}>
-              <Card>
-                <CardContent className="ufa:pt-4">
-                  <DataManager store={store} />
-                </CardContent>
-              </Card>
+              <DataManager store={store} />
             </StoreReady>
           </TabsContent>
           <TabsContent value="access" className="ufa:flex ufa:flex-col ufa:gap-4">

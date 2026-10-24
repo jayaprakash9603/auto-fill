@@ -1,10 +1,17 @@
 import { PROFILE_TEMPLATES, getProfileTemplate, type Profile } from '@ufa/core'
 import type { AutofillStore } from '@ufa/storage'
-import { CheckIcon, MoreHorizontalIcon, PlusIcon, UserRoundPenIcon } from 'lucide-react'
+import {
+  CheckIcon,
+  MoreHorizontalIcon,
+  PlusIcon,
+  UserRoundPenIcon,
+  UsersRoundIcon,
+} from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 
 import { useAction, useStoreSnapshot } from '../../hooks/use-store'
 import { useTranslate } from '../../i18n/messages'
+import { cn } from '../../lib/cn'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
@@ -18,7 +25,14 @@ import {
 import { Input } from '../ui/form-controls'
 import { SimpleSelect } from '../ui/select'
 import { ProfileDetailsDialog } from './profile-details'
-import { ConfirmDialog, ErrorMessage, FormField, Section } from './shared'
+import {
+  ConfirmDialog,
+  ErrorMessage,
+  FormField,
+  Section,
+  SECTION_ROW,
+  SECTION_ROWS,
+} from './shared'
 
 export interface ProfileManagerProps {
   store: AutofillStore
@@ -39,22 +53,28 @@ export function ProfileManager({ store, className }: ProfileManagerProps) {
   const ownAnswers = (profileId: string) =>
     snapshot.answers.filter((answer) => answer.profileId === profileId).length
 
+  const error = deleting ? null : action.error
+
   return (
     <Section
       className={className}
+      icon={<UsersRoundIcon />}
       title={t('profile.list')}
+      count={snapshot.profiles.length}
       description={t('profile.listHint')}
+      bodyClassName="ufa:gap-0 ufa:p-0"
       actions={
         <Button size="sm" onClick={() => setEditing({ mode: 'new' })}>
           <PlusIcon /> {t('profile.new')}
         </Button>
       }
     >
-      <ErrorMessage message={deleting ? null : action.error} />
-      <ul
-        aria-label={t('profile.list')}
-        className="ufa:flex ufa:flex-col ufa:divide-y ufa:divide-border ufa:rounded-md ufa:border ufa:border-border"
-      >
+      {error ? (
+        <div className="ufa:border-b ufa:border-border ufa:p-3">
+          <ErrorMessage message={error} />
+        </div>
+      ) : null}
+      <ul aria-label={t('profile.list')} className={SECTION_ROWS}>
         {snapshot.profiles.map((profile) => {
           const template = getProfileTemplate(profile.templateId)
           const active = profile.id === activeId
@@ -62,8 +82,19 @@ export function ProfileManager({ store, className }: ProfileManagerProps) {
             <li
               key={profile.id}
               data-profile-id={profile.id}
-              className="ufa:flex ufa:items-center ufa:gap-2 ufa:px-2.5 ufa:py-2"
+              className={cn(SECTION_ROW, active && 'ufa:bg-primary/5 ufa:hover:bg-primary/5')}
             >
+              <span
+                aria-hidden
+                className={cn(
+                  'ufa:flex ufa:size-8 ufa:shrink-0 ufa:items-center ufa:justify-center ufa:rounded-full ufa:text-xs ufa:font-semibold ufa:uppercase',
+                  active
+                    ? 'ufa:bg-primary ufa:text-primary-foreground'
+                    : 'ufa:bg-muted ufa:text-muted-foreground',
+                )}
+              >
+                {profile.name.trim().charAt(0) || '?'}
+              </span>
               <div className="ufa:flex ufa:min-w-0 ufa:flex-1 ufa:flex-col ufa:gap-0.5">
                 <span className="ufa:truncate ufa:text-sm ufa:font-medium">{profile.name}</span>
                 <div className="ufa:flex ufa:flex-wrap ufa:gap-1">
@@ -80,65 +111,72 @@ export function ProfileManager({ store, className }: ProfileManagerProps) {
                   ) : null}
                 </div>
               </div>
-              {active ? null : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  aria-label={t('profile.useLabel', { name: profile.name })}
-                  disabled={action.pending}
-                  onClick={() => void action.run(() => store.profiles.setActive(profile.id))}
-                >
-                  {t('profile.use')}
-                </Button>
-              )}
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={t('profile.detailsLabel', { name: profile.name })}
-                title={t('profile.details')}
-                onClick={() => setDetails(profile)}
-              >
-                <UserRoundPenIcon />
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+              <div className="ufa:-my-1 ufa:flex ufa:shrink-0 ufa:items-center ufa:gap-0.5">
+                {active ? null : (
                   <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={t('profile.actions', { name: profile.name })}
+                    variant="outline"
+                    size="sm"
+                    className="ufa:mr-1"
+                    aria-label={t('profile.useLabel', { name: profile.name })}
+                    disabled={action.pending}
+                    onClick={() => void action.run(() => store.profiles.setActive(profile.id))}
                   >
-                    <MoreHorizontalIcon />
+                    {t('profile.use')}
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onSelect={() => setEditing({ mode: 'rename', profile })}>
-                    {t('profile.rename')}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={() => void action.run(() => store.profiles.duplicate(profile.id))}
-                  >
-                    {t('profile.duplicate')}
-                  </DropdownMenuItem>
-                  {profile.isDefault ? null : (
-                    <DropdownMenuItem
-                      onSelect={() => void action.run(() => store.profiles.setDefault(profile.id))}
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="ufa:text-muted-foreground"
+                  aria-label={t('profile.detailsLabel', { name: profile.name })}
+                  title={t('profile.details')}
+                  onClick={() => setDetails(profile)}
+                >
+                  <UserRoundPenIcon />
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="ufa:text-muted-foreground"
+                      aria-label={t('profile.actions', { name: profile.name })}
                     >
-                      {t('profile.makeDefault')}
+                      <MoreHorizontalIcon />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => setEditing({ mode: 'rename', profile })}>
+                      {t('profile.rename')}
                     </DropdownMenuItem>
-                  )}
-                  {snapshot.profiles.length > 1 ? (
-                    <>
-                      <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onSelect={() => void action.run(() => store.profiles.duplicate(profile.id))}
+                    >
+                      {t('profile.duplicate')}
+                    </DropdownMenuItem>
+                    {profile.isDefault ? null : (
                       <DropdownMenuItem
-                        className="ufa:text-destructive"
-                        onSelect={() => setDeleting(profile)}
+                        onSelect={() =>
+                          void action.run(() => store.profiles.setDefault(profile.id))
+                        }
                       >
-                        {t('common.delete')}
+                        {t('profile.makeDefault')}
                       </DropdownMenuItem>
-                    </>
-                  ) : null}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                    )}
+                    {snapshot.profiles.length > 1 ? (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="ufa:text-destructive"
+                          onSelect={() => setDeleting(profile)}
+                        >
+                          {t('common.delete')}
+                        </DropdownMenuItem>
+                      </>
+                    ) : null}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </li>
           )
         })}

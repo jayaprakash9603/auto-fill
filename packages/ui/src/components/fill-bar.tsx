@@ -1,13 +1,12 @@
 import { AUTOFILL_MODES, type AutofillMode, type FillResult } from '@ufa/core'
-import { ListChecksIcon, Undo2Icon, WandSparklesIcon } from 'lucide-react'
+import { EraserIcon, ListChecksIcon, SparklesIcon, Undo2Icon, WandSparklesIcon } from 'lucide-react'
+import { RadioGroup as RadioGroupPrimitive } from 'radix-ui'
 import { useId } from 'react'
 
 import { useTranslate } from '../i18n/messages'
 import { cn } from '../lib/cn'
 import { Button } from './ui/button'
-import { Label } from './ui/form-controls'
 import { Spinner } from './ui/misc'
-import { SimpleSelect } from './ui/select'
 
 export interface FillBarProps {
   mode: AutofillMode
@@ -42,7 +41,7 @@ function summarize(results: readonly FillResult[]) {
   return { filled, failed, skipped }
 }
 
-/** Mode switch, the fill action and undo, above the field list. */
+/** Mode switch, the fill action and undo, below the field list. */
 export function FillBar({
   mode,
   onModeChange,
@@ -63,33 +62,47 @@ export function FillBar({
   const t = useTranslate()
   const modeId = useId()
   const status = message ?? (lastResults ? t('fill.summary', summarize(lastResults)) : null)
+  const canSelectMore = Boolean(onSelectAll) && selectableCount > selectedCount
+  const canGenerate = syntheticEnabled && Boolean(onGenerate)
 
   return (
     <div
       data-slot="fill-bar"
       className={cn(
-        'ufa:flex ufa:flex-col ufa:gap-2 ufa:rounded-md ufa:border ufa:border-border ufa:bg-card ufa:p-2.5',
+        'ufa:flex ufa:flex-col ufa:gap-2.5 ufa:rounded-xl ufa:border ufa:border-border ufa:bg-card ufa:p-3',
         className,
       )}
     >
-      <div className="ufa:flex ufa:items-center ufa:gap-2">
-        <Label htmlFor={modeId} className="ufa:shrink-0">
-          {t('mode.label')}
-        </Label>
-        <SimpleSelect
-          id={modeId}
-          className="ufa:h-8 ufa:w-28 ufa:shrink-0 ufa:text-xs"
-          value={mode}
-          disabled={!onModeChange || filling}
-          aria-describedby={`${modeId}-hint`}
-          onValueChange={(entry) => onModeChange?.(entry as AutofillMode)}
-          options={AUTOFILL_MODES.map((entry) => ({ value: entry, label: t(`mode.${entry}`) }))}
-        />
-        <p
-          id={`${modeId}-hint`}
-          className="ufa:line-clamp-2 ufa:min-w-0 ufa:flex-1 ufa:text-xs ufa:text-muted-foreground"
-          title={t(`mode.${mode}Hint`)}
-        >
+      <div className="ufa:flex ufa:flex-col ufa:gap-1">
+        <div className="ufa:flex ufa:items-center ufa:gap-2.5">
+          <span
+            id={`${modeId}-label`}
+            className="ufa:shrink-0 ufa:text-xs ufa:font-medium ufa:text-muted-foreground"
+          >
+            {t('mode.label')}
+          </span>
+          <RadioGroupPrimitive.Root
+            data-slot="mode-switch"
+            aria-labelledby={`${modeId}-label`}
+            aria-describedby={`${modeId}-hint`}
+            orientation="horizontal"
+            value={mode}
+            disabled={!onModeChange || filling}
+            onValueChange={(entry) => onModeChange?.(entry as AutofillMode)}
+            className="ufa:grid ufa:min-w-0 ufa:flex-1 ufa:grid-cols-3 ufa:gap-0.5 ufa:rounded-lg ufa:bg-muted ufa:p-0.5"
+          >
+            {AUTOFILL_MODES.map((entry) => (
+              <RadioGroupPrimitive.Item
+                key={entry}
+                value={entry}
+                className="ufa:h-7 ufa:min-w-0 ufa:cursor-pointer ufa:truncate ufa:rounded-md ufa:px-2 ufa:text-xs ufa:font-medium ufa:text-muted-foreground ufa:transition-[color,background-color,box-shadow] ufa:duration-150 ufa:outline-none ufa:hover:text-foreground ufa:focus-visible:outline-2 ufa:focus-visible:outline-ring ufa:disabled:cursor-not-allowed ufa:disabled:opacity-60 ufa:data-[state=checked]:bg-background ufa:data-[state=checked]:text-foreground ufa:data-[state=checked]:shadow-xs"
+              >
+                {t(`mode.${entry}`)}
+              </RadioGroupPrimitive.Item>
+            ))}
+          </RadioGroupPrimitive.Root>
+        </div>
+        <p id={`${modeId}-hint`} className="ufa:text-xs ufa:text-muted-foreground">
           {t(`mode.${mode}Hint`)}
         </p>
       </div>
@@ -113,33 +126,34 @@ export function FillBar({
               </Button>
             ) : null}
           </div>
-          {(onSelectAll && selectableCount > selectedCount) ||
-          (syntheticEnabled && onGenerate) ||
-          onClear ? (
-            <div className="ufa:flex ufa:flex-wrap ufa:items-center ufa:gap-1.5">
-              {onSelectAll && selectableCount > selectedCount ? (
+          {canSelectMore || canGenerate || onClear ? (
+            <div className="ufa:-mx-1 ufa:flex ufa:flex-wrap ufa:items-center ufa:gap-1">
+              {canSelectMore ? (
                 <Button size="sm" variant="ghost" onClick={onSelectAll} disabled={filling}>
                   <ListChecksIcon />
                   {t('fill.selectAll')}
                 </Button>
               ) : null}
-              {syntheticEnabled && onGenerate ? (
+              {canGenerate ? (
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="ghost"
                   onClick={onGenerate}
                   disabled={filling || selectedCount === 0}
                 >
+                  <SparklesIcon />
                   {t('fill.generate', { count: selectedCount })}
                 </Button>
               ) : null}
               {onClear ? (
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="ghost"
+                  className="ufa:ml-auto ufa:text-muted-foreground ufa:hover:bg-destructive/10 ufa:hover:text-destructive"
                   onClick={onClear}
                   disabled={filling || selectedCount === 0}
                 >
+                  <EraserIcon />
                   {t('fill.clear', { count: selectedCount })}
                 </Button>
               ) : null}
@@ -151,7 +165,10 @@ export function FillBar({
       <p
         data-slot="fill-status"
         role="status"
-        className={cn('ufa:text-xs ufa:font-medium ufa:text-foreground', !status && 'ufa:sr-only')}
+        className={cn(
+          'ufa:rounded-md ufa:bg-muted/60 ufa:px-2.5 ufa:py-1.5 ufa:text-xs ufa:font-medium ufa:text-foreground',
+          !status && 'ufa:sr-only',
+        )}
       >
         {status}
       </p>

@@ -225,8 +225,8 @@ export function FieldList({
       aria-busy={scanning}
       className={cn('ufa:flex ufa:min-w-0 ufa:flex-col ufa:gap-2', className)}
     >
-      <div className="ufa:flex ufa:h-6 ufa:items-center ufa:gap-2">
-        <h3 id={headingId} className="ufa:flex-1 ufa:text-sm ufa:font-semibold">
+      <div className="ufa:flex ufa:h-6 ufa:items-center ufa:gap-2 ufa:px-0.5">
+        <h3 id={headingId} className="ufa:flex-1 ufa:text-[13px] ufa:font-semibold">
           {t('fields.title')}
         </h3>
         <span className="ufa:flex ufa:items-center ufa:gap-1.5 ufa:text-xs ufa:text-muted-foreground ufa:tabular-nums">
@@ -287,10 +287,8 @@ function SummaryStat({
   tone: keyof typeof STAT_TONES
 }) {
   return (
-    <div className="ufa:flex ufa:min-w-0 ufa:flex-col ufa:gap-0.5 ufa:rounded-md ufa:border ufa:border-border ufa:bg-card ufa:px-2.5 ufa:py-2">
-      <span className="ufa:text-base ufa:leading-5 ufa:font-semibold ufa:tabular-nums">
-        {value}
-      </span>
+    <div className="ufa:flex ufa:min-w-0 ufa:flex-col ufa:gap-0.5 ufa:rounded-lg ufa:border ufa:border-border ufa:bg-card ufa:px-3 ufa:py-2 ufa:shadow-xs">
+      <span className="ufa:text-lg ufa:leading-6 ufa:font-semibold ufa:tabular-nums">{value}</span>
       <span className="ufa:flex ufa:min-w-0 ufa:items-center ufa:gap-1.5 ufa:text-xs ufa:text-muted-foreground">
         <span className={cn('ufa:size-1.5 ufa:shrink-0 ufa:rounded-full', STAT_TONES[tone])} />
         <span className="ufa:truncate">{label}</span>
@@ -306,12 +304,12 @@ function FieldGroupSection({ group, context }: { group: FieldGroup; context: Row
     <div
       role="group"
       aria-labelledby={headingId}
-      className="ufa:overflow-hidden ufa:rounded-md ufa:border ufa:border-border ufa:bg-card"
+      className="ufa:overflow-hidden ufa:rounded-xl ufa:border ufa:border-border ufa:bg-card ufa:shadow-xs"
     >
-      <div className="ufa:flex ufa:items-center ufa:gap-2 ufa:border-b ufa:border-border ufa:bg-muted/50 ufa:px-3 ufa:py-1.5">
+      <div className="ufa:flex ufa:min-h-9 ufa:items-center ufa:gap-2 ufa:border-b ufa:border-border ufa:bg-muted/40 ufa:px-3 ufa:py-1.5">
         <h4
           id={headingId}
-          className="ufa:min-w-0 ufa:flex-1 ufa:truncate ufa:text-xs ufa:font-medium ufa:text-muted-foreground"
+          className="ufa:min-w-0 ufa:flex-1 ufa:truncate ufa:text-xs ufa:font-semibold ufa:text-muted-foreground"
           title={group.title}
         >
           {group.title}
@@ -399,7 +397,7 @@ function FieldRow({ field, context }: { field: FieldDescriptor; context: RowCont
       data-fill-status={result?.status}
       className={cn(
         'ufa:flex ufa:items-start ufa:gap-2.5 ufa:px-3 ufa:py-2.5 ufa:transition-colors',
-        isSelected && 'ufa:bg-primary/5',
+        isSelected ? 'ufa:bg-primary/5' : 'ufa:hover:bg-muted/30',
       )}
     >
       {context.selected ? (
@@ -452,7 +450,7 @@ function FieldRow({ field, context }: { field: FieldDescriptor; context: RowCont
         {proposed !== null ? (
           <div
             data-slot="match-proposal"
-            className="ufa:mt-1.5 ufa:flex ufa:flex-col ufa:gap-0.5 ufa:rounded-md ufa:bg-muted/60 ufa:px-2 ufa:py-1.5"
+            className="ufa:mt-1.5 ufa:flex ufa:flex-col ufa:gap-0.5 ufa:rounded-md ufa:border-l-2 ufa:border-primary/40 ufa:bg-muted/50 ufa:px-2.5 ufa:py-1.5"
           >
             <p className="ufa:flex ufa:min-w-0 ufa:items-baseline ufa:gap-1 ufa:text-xs">
               <span className="ufa:sr-only">

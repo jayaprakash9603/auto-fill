@@ -1,6 +1,6 @@
 import type { AnswerCategory, CustomFieldDefinition } from '@ufa/core'
 import type { AutofillStore } from '@ufa/storage'
-import { PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react'
+import { ListPlusIcon, PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 
 import { useAction, useStoreSnapshot } from '../../hooks/use-store'
@@ -16,6 +16,8 @@ import {
   ErrorMessage,
   FormField,
   Section,
+  SECTION_ROW,
+  SECTION_ROWS,
   splitList,
 } from './shared'
 
@@ -32,26 +34,30 @@ export function CustomFieldsManager({ store, className }: CustomFieldsManagerPro
   const [editing, setEditing] = useState<CustomFieldDefinition | 'new' | null>(null)
   const [deleting, setDeleting] = useState<CustomFieldDefinition | null>(null)
 
+  const fields = snapshot.customFields
+
   return (
     <Section
       className={className}
+      icon={<ListPlusIcon />}
       title={t('custom.title')}
+      count={fields.length}
       description={t('custom.hint')}
+      bodyClassName={fields.length ? 'ufa:p-0' : undefined}
       actions={
         <Button size="sm" variant="outline" onClick={() => setEditing('new')}>
           <PlusIcon /> {t('custom.add')}
         </Button>
       }
     >
-      {snapshot.customFields.length === 0 ? (
-        <p className="ufa:text-xs ufa:text-muted-foreground">{t('custom.empty')}</p>
+      {fields.length === 0 ? (
+        <p className="ufa:py-1 ufa:text-center ufa:text-xs ufa:text-muted-foreground">
+          {t('custom.empty')}
+        </p>
       ) : (
-        <ul
-          aria-label={t('custom.title')}
-          className="ufa:flex ufa:flex-col ufa:divide-y ufa:divide-border ufa:rounded-md ufa:border ufa:border-border"
-        >
-          {snapshot.customFields.map((field) => (
-            <li key={field.key} className="ufa:flex ufa:items-center ufa:gap-2 ufa:px-2.5 ufa:py-2">
+        <ul aria-label={t('custom.title')} className={SECTION_ROWS}>
+          {fields.map((field) => (
+            <li key={field.key} className={SECTION_ROW}>
               <div className="ufa:flex ufa:min-w-0 ufa:flex-1 ufa:flex-col">
                 <span className="ufa:truncate ufa:text-sm ufa:font-medium">{field.label}</span>
                 <span className="ufa:truncate ufa:text-xs ufa:text-muted-foreground">
@@ -61,22 +67,28 @@ export function CustomFieldsManager({ store, className }: CustomFieldsManagerPro
                   ].join(' · ')}
                 </span>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setEditing(field)}
-                aria-label={t('custom.editLabel', { label: field.label })}
-              >
-                <PencilIcon />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setDeleting(field)}
-                aria-label={t('custom.deleteLabel', { label: field.label })}
-              >
-                <Trash2Icon />
-              </Button>
+              <div className="ufa:-my-1 ufa:flex ufa:shrink-0 ufa:items-center">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="ufa:text-muted-foreground"
+                  onClick={() => setEditing(field)}
+                  aria-label={t('custom.editLabel', { label: field.label })}
+                  title={t('common.edit')}
+                >
+                  <PencilIcon />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="ufa:text-muted-foreground ufa:hover:bg-destructive/10 ufa:hover:text-destructive"
+                  onClick={() => setDeleting(field)}
+                  aria-label={t('custom.deleteLabel', { label: field.label })}
+                  title={t('common.delete')}
+                >
+                  <Trash2Icon />
+                </Button>
+              </div>
             </li>
           ))}
         </ul>

@@ -5,15 +5,15 @@ import type { ComponentProps } from 'react'
 import { cn } from '../../lib/cn'
 
 export const buttonVariants = cva(
-  'ufa:inline-flex ufa:items-center ufa:justify-center ufa:gap-1.5 ufa:whitespace-nowrap ufa:rounded-md ufa:text-sm ufa:font-medium ufa:transition-colors ufa:disabled:pointer-events-none ufa:disabled:opacity-50 ufa:[&_svg]:size-4 ufa:[&_svg]:shrink-0 ufa:focus-visible:outline-2 ufa:focus-visible:outline-offset-2 ufa:focus-visible:outline-ring',
+  'ufa:inline-flex ufa:cursor-pointer ufa:items-center ufa:justify-center ufa:gap-1.5 ufa:whitespace-nowrap ufa:rounded-md ufa:text-sm ufa:font-medium ufa:transition-[color,background-color,border-color,transform] ufa:duration-150 ufa:motion-safe:active:scale-[0.98] ufa:disabled:pointer-events-none ufa:disabled:opacity-50 ufa:[&_svg]:size-4 ufa:[&_svg]:shrink-0 ufa:focus-visible:outline-2 ufa:focus-visible:outline-offset-2 ufa:focus-visible:outline-ring',
   {
     variants: {
       variant: {
-        default: 'ufa:bg-primary ufa:text-primary-foreground ufa:hover:bg-primary/90',
+        default: 'ufa:bg-primary ufa:text-primary-foreground ufa:shadow-xs ufa:hover:bg-primary/90',
         destructive:
-          'ufa:bg-destructive ufa:text-destructive-foreground ufa:hover:bg-destructive/90',
+          'ufa:bg-destructive ufa:text-destructive-foreground ufa:shadow-xs ufa:hover:bg-destructive/90',
         outline:
-          'ufa:border ufa:border-border ufa:bg-background ufa:hover:bg-accent ufa:hover:text-accent-foreground',
+          'ufa:border ufa:border-border ufa:bg-background ufa:shadow-xs ufa:hover:bg-accent ufa:hover:text-accent-foreground',
         secondary: 'ufa:bg-secondary ufa:text-secondary-foreground ufa:hover:bg-secondary/80',
         ghost: 'ufa:hover:bg-accent ufa:hover:text-accent-foreground',
         link: 'ufa:text-primary ufa:underline-offset-4 ufa:hover:underline',
@@ -23,6 +23,7 @@ export const buttonVariants = cva(
         sm: 'ufa:h-8 ufa:px-2.5 ufa:text-xs',
         lg: 'ufa:h-10 ufa:px-5',
         icon: 'ufa:size-8',
+        'icon-sm': 'ufa:size-7 ufa:[&_svg]:size-3.5',
       },
     },
     defaultVariants: { variant: 'default', size: 'default' },

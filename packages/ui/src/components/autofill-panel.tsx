@@ -1,7 +1,7 @@
 import type { AutofillController, AutofillHost, AutofillState } from '@ufa/autofill-sdk'
 import { toAutofillError, type AutofillMode, type FillResult } from '@ufa/core'
 import type { AutofillStore } from '@ufa/storage'
-import { PlugZapIcon, SearchXIcon } from 'lucide-react'
+import { GraduationCapIcon, PlugZapIcon, SearchXIcon, ShieldCheckIcon } from 'lucide-react'
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
 
 import { useAutofillController, useAutofillState } from '../hooks/use-autofill'
@@ -24,7 +24,7 @@ import { LiveConnection } from './portal-status'
 import { EmptyState, ErrorState, PermissionNotice, RestrictedPageState } from './states'
 import { Button } from './ui/button'
 import { Label, Switch } from './ui/form-controls'
-import { Spinner } from './ui/misc'
+import { Skeleton } from './ui/misc'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
 
 export type AutofillPanelTab = 'page' | 'answers' | 'profiles' | 'data' | 'settings'
@@ -77,9 +77,15 @@ export function AutofillPanel({
   )
 }
 
-/** Scroll area of a tab; the stable gutter keeps the width fixed as content grows or shrinks. */
-const SCROLL_AREA =
-  'ufa:flex ufa:min-h-0 ufa:flex-1 ufa:flex-col ufa:gap-3 ufa:overflow-y-auto ufa:overscroll-contain ufa:p-3 ufa:[scrollbar-gutter:stable]'
+/**
+ * The same scrollbar gutter on every row (header, tabs, scroll area, fill bar), so their edges line
+ * up whether or not the tab content scrolls, and the width never jumps as content grows.
+ */
+const GUTTER = 'ufa:[scrollbar-gutter:stable] ufa:[scrollbar-width:thin]'
+const SCROLL_AREA = cn(
+  'ufa:flex ufa:min-h-0 ufa:flex-1 ufa:flex-col ufa:gap-3 ufa:overflow-y-auto ufa:overscroll-contain ufa:p-3',
+  GUTTER,
+)
 const TAB_CONTENT = SCROLL_AREA
 const PAGE_TAB_CONTENT = 'ufa:flex ufa:min-h-0 ufa:flex-1 ufa:flex-col'
 
@@ -104,35 +110,52 @@ function PanelBody({
   const busy = state.status === 'connecting' || state.scanning
   const [tab, setTab] = useState<AutofillPanelTab>(defaultTab)
   const store = controller?.store ?? null
+  const snapshot = useStoreSnapshot(store)
+  const storeReady = Boolean(store) && snapshot.status === 'ready'
 
   return (
     <div className="ufa:flex ufa:min-h-0 ufa:flex-1 ufa:flex-col">
-      <header className="ufa:flex ufa:shrink-0 ufa:flex-col ufa:gap-2 ufa:border-b ufa:border-border ufa:p-3">
+      <header
+        className={cn(
+          'ufa:flex ufa:shrink-0 ufa:flex-col ufa:gap-2 ufa:overflow-hidden ufa:px-3 ufa:pt-3 ufa:pb-2',
+          GUTTER,
+        )}
+      >
         <h2
           className={cn('ufa:truncate ufa:text-sm ufa:font-semibold', hideTitle && 'ufa:sr-only')}
         >
           {t('panel.title')}
         </h2>
-        <LiveConnection
-          status={state.status}
-          page={state.page}
-          busy={!controller || busy}
-          onRefresh={reconnect}
-        />
-        <ProfileSelector store={store} />
+        <div className="ufa:overflow-hidden ufa:rounded-xl ufa:border ufa:border-border ufa:bg-card ufa:shadow-xs">
+          <LiveConnection
+            className="ufa:rounded-none ufa:border-0 ufa:bg-transparent ufa:shadow-none"
+            status={state.status}
+            page={state.page}
+            busy={!controller || busy}
+            onRefresh={reconnect}
+          />
+          <ProfileSelector
+            store={store}
+            className="ufa:border-t ufa:border-border ufa:bg-muted/30 ufa:px-2.5 ufa:py-2"
+          />
+        </div>
       </header>
       <Tabs
         value={tab}
         onValueChange={(value) => setTab(value as AutofillPanelTab)}
         className="ufa:min-h-0 ufa:flex-1 ufa:gap-0"
       >
-        <div className="ufa:shrink-0 ufa:px-3 ufa:pt-2">
+        <div className={cn('ufa:shrink-0 ufa:overflow-hidden ufa:px-3', GUTTER)}>
           <TabsList
             aria-label={t('tabs.label')}
             className="ufa:overflow-x-auto ufa:[scrollbar-width:none]"
           >
-            <TabsTrigger value="page">{t('tabs.page')}</TabsTrigger>
-            <TabsTrigger value="answers">{t('tabs.answers')}</TabsTrigger>
+            <TabsTrigger value="page" count={state.page ? state.fields.length : undefined}>
+              {t('tabs.page')}
+            </TabsTrigger>
+            <TabsTrigger value="answers" count={storeReady ? snapshot.answers.length : undefined}>
+              {t('tabs.answers')}
+            </TabsTrigger>
             <TabsTrigger value="profiles">{t('tabs.profiles')}</TabsTrigger>
             <TabsTrigger value="data">{t('tabs.data')}</TabsTrigger>
             {settingsTab ? <TabsTrigger value="settings">{t('tabs.settings')}</TabsTrigger> : null}
@@ -146,10 +169,7 @@ function PanelBody({
             {(ready) => (
               <>
                 <AnswerLibrary store={ready} />
-                <CustomFieldsManager
-                  store={ready}
-                  className="ufa:border-t ufa:border-border ufa:pt-3"
-                />
+                <CustomFieldsManager store={ready} />
               </>
             )}
           </StoreGate>
@@ -162,7 +182,7 @@ function PanelBody({
             {(ready) => (
               <>
                 <FillSettings store={ready} currentSite={state.page?.hostname ?? null} />
-                <DataManager store={ready} className="ufa:border-t ufa:border-border ufa:pt-3" />
+                <DataManager store={ready} />
               </>
             )}
           </StoreGate>
@@ -196,9 +216,29 @@ function StoreGate({
       />
     )
   return (
-    <div className="ufa:flex ufa:items-center ufa:justify-center ufa:gap-2 ufa:py-8 ufa:text-sm ufa:text-muted-foreground">
-      <Spinner label={t('store.loading')} />
-      <span aria-hidden="true">{t('store.loading')}</span>
+    <div
+      data-slot="store-skeleton"
+      role="status"
+      aria-label={t('store.loading')}
+      className="ufa:flex ufa:flex-col ufa:gap-3"
+    >
+      {[0, 1].map((key) => (
+        <div
+          key={key}
+          aria-hidden
+          className="ufa:overflow-hidden ufa:rounded-xl ufa:border ufa:border-border ufa:bg-card ufa:shadow-xs"
+        >
+          <div className="ufa:flex ufa:items-center ufa:gap-2.5 ufa:border-b ufa:border-border ufa:px-3 ufa:py-2.5">
+            <Skeleton className="ufa:size-7" />
+            <Skeleton className="ufa:h-3.5 ufa:w-28" />
+            <Skeleton className="ufa:ml-auto ufa:h-8 ufa:w-24" />
+          </div>
+          <div className="ufa:flex ufa:flex-col ufa:gap-2 ufa:p-3">
+            <Skeleton className="ufa:h-8 ufa:w-full" />
+            <Skeleton className="ufa:h-3 ufa:w-3/5" />
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -284,12 +324,12 @@ function FieldListSkeleton() {
         {[0, 1, 2].map((key) => (
           <div
             key={key}
-            className="ufa:h-12 ufa:rounded-md ufa:bg-muted ufa:motion-safe:animate-pulse"
+            className="ufa:h-14 ufa:rounded-lg ufa:bg-muted ufa:motion-safe:animate-pulse"
           />
         ))}
       </div>
       <div
-        className="ufa:overflow-hidden ufa:rounded-md ufa:border ufa:border-border ufa:bg-card"
+        className="ufa:overflow-hidden ufa:rounded-xl ufa:border ufa:border-border ufa:bg-card ufa:shadow-xs"
         aria-hidden
       >
         {[0, 1, 2, 3].map((key) => (
@@ -447,17 +487,16 @@ function PageFields({
         {ready ? (
           <div
             data-slot="learning-bar"
-            className="ufa:flex ufa:items-start ufa:gap-3 ufa:rounded-md ufa:border ufa:border-dashed ufa:border-border ufa:p-2.5"
+            className="ufa:flex ufa:items-center ufa:gap-2.5 ufa:rounded-xl ufa:border ufa:border-border ufa:bg-card ufa:px-3 ufa:py-2.5 ufa:shadow-xs"
           >
-            <Switch
-              id="learning-arm"
-              className="ufa:mt-0.5"
-              checked={state.learningArmed}
-              disabled={!snapshot.settings.learning.allowed}
-              onCheckedChange={(checked) => void controller.setLearningArmed(checked)}
-            />
+            <span
+              aria-hidden
+              className="ufa:flex ufa:size-7 ufa:shrink-0 ufa:items-center ufa:justify-center ufa:rounded-md ufa:bg-primary/10 ufa:text-primary"
+            >
+              <GraduationCapIcon className="ufa:size-4" />
+            </span>
             <div className="ufa:min-w-0 ufa:flex-1">
-              <Label htmlFor="learning-arm" className="ufa:text-sm">
+              <Label htmlFor="learning-arm" className="ufa:text-[13px]">
                 {t('learning.arm')}
               </Label>
               <p className="ufa:text-xs ufa:text-muted-foreground">{t('learning.armHint')}</p>
@@ -472,17 +511,29 @@ function PageFields({
                 {t('learning.review')} ({candidates.length})
               </Button>
             ) : null}
+            <Switch
+              id="learning-arm"
+              checked={state.learningArmed}
+              disabled={!snapshot.settings.learning.allowed}
+              onCheckedChange={(checked) => void controller.setLearningArmed(checked)}
+            />
           </div>
         ) : null}
         {ready && mode !== 'suggest' ? (
-          <p className="ufa:text-xs ufa:text-muted-foreground">
-            {t('fill.never')} {t('fill.consentHint')}
+          <p className="ufa:flex ufa:items-start ufa:gap-1.5 ufa:px-1 ufa:text-xs ufa:text-muted-foreground">
+            <ShieldCheckIcon aria-hidden className="ufa:mt-px ufa:size-3.5 ufa:shrink-0" />
+            <span>
+              {t('fill.never')} {t('fill.consentHint')}
+            </span>
           </p>
         ) : null}
       </div>
       {ready ? (
         <FillBar
-          className="ufa:shrink-0 ufa:rounded-none ufa:border-x-0 ufa:border-b-0 ufa:p-3 ufa:shadow-[0_-4px_12px_-8px_rgb(0_0_0/0.25)]"
+          className={cn(
+            'ufa:shrink-0 ufa:overflow-hidden ufa:rounded-none ufa:border-x-0 ufa:border-b-0 ufa:shadow-[0_-6px_16px_-12px_rgb(0_0_0/0.35)]',
+            GUTTER,
+          )}
           mode={mode}
           onModeChange={changeMode}
           selectedCount={selected.size}

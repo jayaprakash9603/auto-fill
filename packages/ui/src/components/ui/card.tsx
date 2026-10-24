@@ -7,7 +7,7 @@ export function Card({ className, ...props }: ComponentProps<'div'>) {
     <div
       data-slot="card"
       className={cn(
-        'ufa:rounded-lg ufa:border ufa:border-border ufa:bg-card ufa:text-card-foreground',
+        'ufa:rounded-xl ufa:border ufa:border-border ufa:bg-card ufa:text-card-foreground ufa:shadow-xs',
         className,
       )}
       {...props}
@@ -29,7 +29,10 @@ export function CardTitle({ className, ...props }: ComponentProps<'h3'>) {
   return (
     <h3
       data-slot="card-title"
-      className={cn('ufa:text-sm ufa:font-semibold ufa:leading-tight', className)}
+      className={cn(
+        'ufa:text-[13px] ufa:font-semibold ufa:leading-tight ufa:[&_svg]:size-4 ufa:[&_svg]:text-primary',
+        className,
+      )}
       {...props}
     />
   )

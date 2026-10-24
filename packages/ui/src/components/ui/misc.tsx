@@ -45,7 +45,7 @@ export function Skeleton({ className, ...props }: ComponentProps<'div'>) {
   return (
     <div
       data-slot="skeleton"
-      className={cn('ufa:animate-pulse ufa:rounded-md ufa:bg-muted', className)}
+      className={cn('ufa:rounded-md ufa:bg-muted ufa:motion-safe:animate-pulse', className)}
       {...props}
     />
   )
@@ -133,7 +133,7 @@ export function Alert({
       data-slot="alert"
       data-tone={tone}
       className={cn(
-        'ufa:flex ufa:gap-2.5 ufa:rounded-md ufa:border ufa:p-3 ufa:text-sm',
+        'ufa:flex ufa:gap-2.5 ufa:rounded-lg ufa:border ufa:p-3 ufa:text-sm',
         ALERT_TONES[tone],
         className,
       )}
