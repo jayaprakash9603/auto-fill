@@ -13,10 +13,24 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs'
+import * as nodeModule from 'node:module'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import { build } from 'tsdown'
+import { createLoad } from './yuku-wasm-core.mjs'
+
+// Registered before tsdown loads, so its declaration bundler parses with Yuku's WebAssembly core.
+const wasm = {
+  entry: import.meta.resolve('@yuku-core/wasm'),
+  binary: import.meta.resolve('@yuku-core/wasm/yuku-core.wasm'),
+  version: JSON.parse(
+    readFileSync(new URL(import.meta.resolve('@yuku-core/wasm/package.json')), 'utf8'),
+  ).version,
+}
+if (nodeModule.registerHooks) nodeModule.registerHooks({ load: createLoad(wasm) })
+else nodeModule.register('./yuku-wasm-core.mjs', import.meta.url, { data: wasm })
+
+const { build } = await import('tsdown')
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const repoRoot = resolve(packageRoot, '../..')
