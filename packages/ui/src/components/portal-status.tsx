@@ -85,8 +85,9 @@ export function LiveConnection({
         <p className="ufa:truncate ufa:text-sm ufa:leading-5 ufa:font-semibold" title={page?.url}>
           {title}
         </p>
-        <div className="ufa:flex ufa:min-w-0 ufa:items-center ufa:gap-1.5 ufa:text-xs ufa:leading-5 ufa:text-muted-foreground">
-          <ConnectionBadge status={status} />
+        <div className="ufa:flex ufa:min-h-5.5 ufa:min-w-0 ufa:items-center ufa:gap-1.5 ufa:text-xs ufa:leading-5 ufa:text-muted-foreground">
+          {/* Without a page the title already names the status; min-h keeps the badge's height. */}
+          {page ? <ConnectionBadge status={status} /> : null}
           <span
             className="ufa:min-w-0 ufa:truncate"
             title={page ? t('page.runtime', { version: page.runtimeVersion }) : undefined}
