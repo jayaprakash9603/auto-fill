@@ -29,6 +29,12 @@ describe('extension manifest', () => {
     expect(manifest.web_accessible_resources).toBeUndefined()
   })
 
+  it('opens the side panel from the toolbar button instead of a popup', async () => {
+    const manifest = await manifestFor('production')
+    expect(manifest.action?.default_popup).toBeUndefined()
+    expect(manifest.side_panel?.default_path).toBe('src/sidepanel/index.html')
+  })
+
   it('adds local fixture access only to the e2e build', async () => {
     const manifest = await manifestFor('e2e')
     expect(manifest.host_permissions).toEqual(['http://127.0.0.1/*', 'http://localhost/*'])

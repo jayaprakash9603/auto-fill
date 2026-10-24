@@ -65,7 +65,7 @@ test.describe('extension shell', () => {
   test('options page lists site access', async ({ openExtensionPage }) => {
     const options = await openExtensionPage('src/options/index.html')
     await expect(options.getByRole('heading', { name: 'Universal Form Autofill' })).toBeVisible()
-    await options.getByRole('tab', { name: 'Site access & privacy' }).click()
+    await options.getByRole('tab', { name: 'Appearance & access' }).click()
     const sites = options.getByRole('list', { name: 'Allowed sites' })
     await expect(sites.getByText('http://127.0.0.1/*')).toBeVisible()
     await expect(sites.getByText('Required').first()).toBeVisible()

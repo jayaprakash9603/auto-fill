@@ -27,7 +27,7 @@ import { Label, Switch } from './ui/form-controls'
 import { Spinner } from './ui/misc'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
 
-export type AutofillPanelTab = 'page' | 'answers' | 'profiles' | 'data'
+export type AutofillPanelTab = 'page' | 'answers' | 'profiles' | 'data' | 'settings'
 
 export interface AutofillPanelProps {
   /** Supplies controllers (and page access requests). Either `host` or `controller` is required. */
@@ -40,6 +40,8 @@ export interface AutofillPanelProps {
   embedded?: boolean
   /** Tab shown first. Defaults to the page's fields. */
   defaultTab?: AutofillPanelTab
+  /** Adds a Settings tab with the host's own settings (appearance, access, and so on). */
+  settingsTab?: ReactNode
   className?: string
 }
 
@@ -50,6 +52,7 @@ export function AutofillPanel({
   messages,
   embedded = false,
   defaultTab = 'page',
+  settingsTab,
   className,
 }: AutofillPanelProps) {
   return (
@@ -67,6 +70,7 @@ export function AutofillPanel({
           controller={controller}
           hideTitle={embedded}
           defaultTab={defaultTab}
+          settingsTab={settingsTab}
         />
       </MessagesProvider>
     </AutofillRoot>
@@ -81,12 +85,14 @@ function PanelBody({
   controller: external,
   hideTitle,
   defaultTab,
+  settingsTab,
 }: {
   host?: AutofillHost
   controller?: AutofillController
   /** The host page already shows a title; keep the heading for assistive technology only. */
   hideTitle: boolean
   defaultTab: AutofillPanelTab
+  settingsTab?: ReactNode
 }) {
   const t = useTranslate()
   const controller = useAutofillController(host, external)
@@ -129,11 +135,15 @@ function PanelBody({
         className="ufa:min-h-0 ufa:flex-1 ufa:gap-0 ufa:pt-2"
       >
         <div className="ufa:px-3">
-          <TabsList aria-label={t('tabs.label')}>
+          <TabsList
+            aria-label={t('tabs.label')}
+            className="ufa:overflow-x-auto ufa:[scrollbar-width:none]"
+          >
             <TabsTrigger value="page">{t('tabs.page')}</TabsTrigger>
             <TabsTrigger value="answers">{t('tabs.answers')}</TabsTrigger>
             <TabsTrigger value="profiles">{t('tabs.profiles')}</TabsTrigger>
             <TabsTrigger value="data">{t('tabs.data')}</TabsTrigger>
+            {settingsTab ? <TabsTrigger value="settings">{t('tabs.settings')}</TabsTrigger> : null}
           </TabsList>
         </div>
         <TabsContent value="page" className={TAB_CONTENT}>
@@ -165,6 +175,11 @@ function PanelBody({
             )}
           </StoreGate>
         </TabsContent>
+        {settingsTab ? (
+          <TabsContent value="settings" className={TAB_CONTENT}>
+            {settingsTab}
+          </TabsContent>
+        ) : null}
       </Tabs>
     </div>
   )

@@ -1,9 +1,12 @@
 const OPEN_SIDE_PANEL_COMMAND = 'open-side-panel'
 
-chrome.runtime.onInstalled.addListener(() => {
-  // The toolbar button opens the popup; the side panel opens from there or from the shortcut.
-  void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false })
-})
+function openPanelOnToolbarClick() {
+  // The toolbar button opens the side panel directly. The click also grants activeTab for the tab.
+  void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
+}
+
+chrome.runtime.onInstalled.addListener(openPanelOnToolbarClick)
+chrome.runtime.onStartup.addListener(openPanelOnToolbarClick)
 
 chrome.commands.onCommand.addListener((command, tab) => {
   if (command !== OPEN_SIDE_PANEL_COMMAND || tab?.windowId == null) return

@@ -2,7 +2,7 @@
 
 Universal Form Autofill is a form-filling engine with two delivery shapes built from the same code:
 
-- **A standalone Chrome extension** (`apps/chrome-extension`): side panel, popup and options page.
+- **A standalone Chrome extension** (`apps/chrome-extension`): side panel (opened by the toolbar button) and options page.
 - **One self-contained package** (`@universal-form-autofill/sdk`) that other extensions embed with a few
   lines, the way Browser Toolbox does.
 
@@ -22,7 +22,7 @@ knowledge lives in adapters, and field meaning comes from a semantic catalog tha
 | `packages/autofill-sdk`     | Headless controller (`createAutofill`), the page runtime, the DOM page driver and the `ufa/v1` message protocol                             |
 | `packages/extension-bridge` | Extension-page host: resolves the target tab, injects the runtime, proxies the page driver over `chrome.runtime` messaging                  |
 | `packages/synthetic-data`   | Seeded generator registry and category allowlists (see SYNTHETIC_DATA.md)                                                                   |
-| `packages/portal-adapters`  | Portal adapter registry, generic fallback, Workday/Greenhouse/Lever/Ashby detection (see Portals below)                                       |
+| `packages/portal-adapters`  | Portal adapter registry, generic fallback, Workday/Greenhouse/Lever/Ashby detection (see Portals below)                                     |
 | `packages/ui`               | React panel and shadcn/ui-based components, scoped stylesheet, theme adapter, messages                                                      |
 | `packages/public-sdk`       | The published facade. Bundles everything into `release/sdk`                                                                                 |
 | `apps/chrome-extension`     | The standalone MV3 extension                                                                                                                |
@@ -63,7 +63,7 @@ without a build step. Only `public-sdk` is ever built for consumers.
 
 ## Runtime model
 
-Two halves cooperate. The **panel** runs on an extension page (side panel, popup, or a tool page
+Two halves cooperate. The **panel** runs on an extension page (side panel, options page, or a tool page
 inside a host extension). The **page runtime** runs in the tab's frames as an injected content script.
 
 ```mermaid
@@ -141,7 +141,7 @@ generated values and trusted-site rules. Custom policy plugins register on the c
 The panel shows each decision, lets the user select fields (confident matches start selected; consent
 never does), pick among ambiguous answers, and call `controller.fill({ fieldIds, choices })` or
 `controller.undo()`. In trusted mode on a listed site, high-confidence empty fields may fill without
-selection; the popup offers a one-click action for those.
+selection; the toolbar button grants one-time access for those.
 
 On the page, `createFormActions` refuses prohibited or unsupported controls again, skips non-empty
 fields unless overwriting is enabled, writes through **control adapters** (native prototype setters

@@ -171,6 +171,7 @@ export const defaultMessages = {
   'tabs.answers': 'Answers',
   'tabs.profiles': 'Profiles',
   'tabs.data': 'Data',
+  'tabs.settings': 'Settings',
   'common.cancel': 'Cancel',
   'common.delete': 'Delete',
   'common.save': 'Save',

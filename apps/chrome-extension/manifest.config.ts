@@ -23,7 +23,6 @@ export default defineManifest((env) => ({
   icons: ICONS,
   action: {
     default_title: 'Universal Form Autofill',
-    default_popup: 'src/popup/index.html',
     default_icon: ICONS,
   },
   side_panel: {
