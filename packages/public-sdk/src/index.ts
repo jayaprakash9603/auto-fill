@@ -14,7 +14,16 @@ export {
   type ConnectionStatus,
   type DomPageDriver,
   type DomPageDriverOptions,
+  type FillRequest,
 } from '@ufa/autofill-sdk'
+
+export {
+  evaluatePolicies,
+  isTrustedSite,
+  safetyPolicy,
+  SAFETY_POLICY_ID,
+  type PolicyEvaluationOptions,
+} from '@ufa/form-actions'
 
 export {
   ariaWidgetsDetector,
@@ -119,6 +128,14 @@ export {
   type PageInfo,
   type PolicyAction,
   type PolicyDecision,
+  type PolicyInput,
+  type FillOperation,
+  type FillOperationInput,
+  type FillResult,
+  type FillSource,
+  type RestoreResult,
+  type ControlOutcome,
+  type ControlTarget,
   type PortalAdapter,
   type PortalCapability,
   type Profile,

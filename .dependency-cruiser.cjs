@@ -27,6 +27,7 @@ const ALLOWED = {
     'core',
     'field-detection',
     'matching-engine',
+    'form-actions',
     'autofill-sdk',
     'ui',
     'extension-bridge',

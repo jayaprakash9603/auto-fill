@@ -16,6 +16,7 @@ knowledge lives in adapters, and field meaning comes from a semantic catalog tha
 | `packages/core`             | Domain types and their Zod schemas, error codes, events, the plugin registry, safety classification, semantic catalog, redacting logger     |
 | `packages/field-detection`  | DOM scanner: detector plugins, label resolution, section context, visibility, stable field ids, mutation observer (see FIELD_DETECTION.md)  |
 | `packages/matching-engine`  | Field classification, the ordered matching strategies, confidence, option and value conversion (see Matching below)                         |
+| `packages/form-actions`     | Policy evaluation, fill/clear/restore execution, per-control adapters, post-fill verification and undo snapshots (see Filling below)        |
 | `packages/storage`          | The profiles-and-answers store, migrations, import/export, and adapters: memory, `chrome.storage`, IndexedDB, host-provided (DATA_MODEL.md) |
 | `packages/autofill-sdk`     | Headless controller (`createAutofill`), the page runtime, the DOM page driver and the `ufa/v1` message protocol                             |
 | `packages/extension-bridge` | Extension-page host: resolves the target tab, injects the runtime, proxies the page driver over `chrome.runtime` messaging                  |
@@ -23,8 +24,8 @@ knowledge lives in adapters, and field meaning comes from a semantic catalog tha
 | `packages/public-sdk`       | The published facade. Bundles everything above into `release/sdk`                                                                           |
 | `apps/chrome-extension`     | The standalone MV3 extension                                                                                                                |
 
-Later phases add `form-actions`, `learning-engine`, `synthetic-data` and `portal-adapters`
-packages, plus `apps/demo-host-extension`, which may only import the public package.
+Later phases add `learning-engine`, `synthetic-data` and `portal-adapters` packages, plus
+`apps/demo-host-extension`, which may only import the public package.
 
 ### Dependency direction
 
@@ -36,10 +37,12 @@ flowchart BT
   core
   detection[field-detection] --> core
   matching[matching-engine] --> core
+  actions[form-actions] --> core
   storage --> core
   autofillSdk[autofill-sdk] --> core
   autofillSdk --> detection
   autofillSdk --> matching
+  autofillSdk --> actions
   autofillSdk --> storage
   bridge[extension-bridge] --> autofillSdk
   bridge --> storage
@@ -90,13 +93,15 @@ sequenceDiagram
   request, or `reason: 'file-access'`), `RESTRICTED_PAGE`, `NO_TAB` or `INJECTION_FAILED`, and the panel
   renders a specific state for each.
 
-`PageDriver` (`connect`, `scan`, `subscribe`, `dispose`) is the only way the engine touches a page.
-The DOM driver runs where the document lives (the content script, tests, or an in-page host) and
-wraps the field scanner; after its first scan it watches the page and emits `fields-changed` with the
-frame's complete field list whenever the structure changes. The extension tab driver implements the
-same contract over messaging, fanning scans out to every reachable frame and stamping each field and
-event with the sender's `frameId`. Descriptors never carry element references; actions re-find
-elements by session id and check the fingerprint first.
+`PageDriver` (`connect`, `scan`, `fill`, `restore`, `subscribe`, `dispose`) is the only way the
+engine touches a page. The DOM driver runs where the document lives (the content script, tests, or an
+in-page host) and wraps the field scanner plus `createFormActions`; after its first scan it watches
+the page and emits `fields-changed` with the frame's complete field list whenever the structure
+changes. The extension tab driver implements the same contract over messaging, fanning scans and
+fills out to every reachable frame and stamping each field and event with the sender's `frameId`.
+Descriptors never carry element references; actions re-find elements by session id and check the
+fingerprint first. Fields inside `.ufa-root`, `[data-ufa-portal]` or `[data-ufa-ignore]` are never
+detected, so an embedded panel does not scan or fill its own controls.
 
 ### Controller and state
 
@@ -120,6 +125,28 @@ The controller keeps the fields exactly as the driver reported them and publishe
 fields, mappings, active profile or thresholds change, and each recomputation emits
 `match:complete` with the count per state. Pass `registry` to add classifiers and matching
 strategies; the built-in ones always run. Matching never changes the page.
+
+## Filling
+
+After matching, the controller runs each field through the **policy pipeline**
+(`evaluatePolicies` in `packages/form-actions`). Policies return an action: `block`, `suggest`,
+`confirm`, `fill`, or `skip`, plus a user-facing reason. The built-in `safetyPolicy` respects mode
+(suggest, review, trusted), sensitivity (consent never auto-fills), match state, existing values,
+generated values and trusted-site rules. Custom policy plugins register on the controller's
+`PluginRegistry` and can only make decisions stricter.
+
+The panel shows each decision, lets the user select fields (confident matches start selected; consent
+never does), pick among ambiguous answers, and call `controller.fill({ fieldIds, choices })` or
+`controller.undo()`. In trusted mode on a listed site, high-confidence empty fields may fill without
+selection; the popup offers a one-click action for those.
+
+On the page, `createFormActions` refuses prohibited or unsupported controls again, skips non-empty
+fields unless overwriting is enabled, writes through **control adapters** (native prototype setters
+plus `input`/`change` for framework-controlled inputs, async `<select>` options, ARIA listbox
+activation with keyboard fallbacks), verifies the value stuck, and records an undo snapshot. The tab
+driver groups operations by frame, runs frames in order, and rewrites per-frame snapshot ids into one
+combined id for `restore`. Fill and undo are serialized through the controller queue; events such as
+`fill:complete` and `restore:complete` carry ids and statuses only, never profile values.
 
 `AutofillHost` is what a UI needs from its environment: `createController()` plus an optional
 `requestPageAccess()` that must be called from a user gesture. `createExtensionAutofillHost` builds one

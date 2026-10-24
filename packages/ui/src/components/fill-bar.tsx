@@ -1,0 +1,134 @@
+import { AUTOFILL_MODES, type AutofillMode, type FillResult } from '@ufa/core'
+import { ListChecksIcon, Undo2Icon, WandSparklesIcon } from 'lucide-react'
+import { useId } from 'react'
+
+import { useTranslate } from '../i18n/messages'
+import { cn } from '../lib/cn'
+import { Button } from './ui/button'
+import { NativeSelect } from './ui/form-controls'
+import { Spinner } from './ui/misc'
+
+export interface FillBarProps {
+  mode: AutofillMode
+  onModeChange?: (mode: AutofillMode) => void
+  selectedCount: number
+  /** Fields that could be selected; enables "select all". */
+  selectableCount?: number
+  onFill: () => void
+  onSelectAll?: () => void
+  filling?: boolean
+  canUndo?: boolean
+  onUndo?: () => void
+  /** Results of the latest fill, summarized for the user and assistive technology. */
+  lastResults?: readonly FillResult[] | null
+  /** A status line, e.g. after an undo or an error. */
+  message?: string | null
+  className?: string
+}
+
+function summarize(results: readonly FillResult[]) {
+  let filled = 0
+  let failed = 0
+  let skipped = 0
+  for (const result of results) {
+    if (result.status === 'filled') filled += 1
+    else if (result.status === 'failed') failed += 1
+    else if (result.status === 'skipped') skipped += 1
+  }
+  return { filled, failed, skipped }
+}
+
+/** Mode switch, the fill action and undo, above the field list. */
+export function FillBar({
+  mode,
+  onModeChange,
+  selectedCount,
+  selectableCount = 0,
+  onFill,
+  onSelectAll,
+  filling = false,
+  canUndo = false,
+  onUndo,
+  lastResults = null,
+  message = null,
+  className,
+}: FillBarProps) {
+  const t = useTranslate()
+  const modeId = useId()
+  const status = message ?? (lastResults ? t('fill.summary', summarize(lastResults)) : null)
+
+  return (
+    <div
+      data-slot="fill-bar"
+      className={cn(
+        'ufa:flex ufa:flex-col ufa:gap-2 ufa:rounded-md ufa:border ufa:border-border ufa:bg-card ufa:p-2.5',
+        className,
+      )}
+    >
+      <div className="ufa:flex ufa:items-center ufa:gap-2">
+        <label htmlFor={modeId} className="ufa:text-xs ufa:font-medium">
+          {t('mode.label')}
+        </label>
+        <NativeSelect
+          id={modeId}
+          className="ufa:h-8 ufa:w-28 ufa:text-xs"
+          value={mode}
+          disabled={!onModeChange || filling}
+          aria-describedby={`${modeId}-hint`}
+          onChange={(event) => onModeChange?.(event.target.value as AutofillMode)}
+        >
+          {AUTOFILL_MODES.map((entry) => (
+            <option key={entry} value={entry}>
+              {t(`mode.${entry}`)}
+            </option>
+          ))}
+        </NativeSelect>
+        <p
+          id={`${modeId}-hint`}
+          className="ufa:min-w-0 ufa:flex-1 ufa:text-xs ufa:text-muted-foreground"
+        >
+          {t(`mode.${mode}Hint`)}
+        </p>
+      </div>
+
+      {mode === 'suggest' ? null : (
+        <div className="ufa:flex ufa:flex-wrap ufa:items-center ufa:gap-2">
+          <Button
+            size="sm"
+            onClick={onFill}
+            disabled={filling || selectedCount === 0}
+            aria-busy={filling || undefined}
+          >
+            {filling ? <Spinner label={t('fill.filling')} /> : <WandSparklesIcon />}
+            {filling ? t('fill.filling') : t('fill.selected', { count: selectedCount })}
+          </Button>
+          {onSelectAll && selectableCount > selectedCount ? (
+            <Button size="sm" variant="ghost" onClick={onSelectAll} disabled={filling}>
+              <ListChecksIcon />
+              {t('fill.selectAll')}
+            </Button>
+          ) : null}
+          {canUndo && onUndo ? (
+            <Button size="sm" variant="outline" onClick={onUndo} disabled={filling}>
+              <Undo2Icon />
+              {t('fill.undo')}
+            </Button>
+          ) : null}
+        </div>
+      )}
+
+      <p
+        data-slot="fill-status"
+        role="status"
+        className={cn('ufa:text-xs ufa:text-muted-foreground', !status && 'ufa:sr-only')}
+      >
+        {status}
+      </p>
+      {mode === 'suggest' ? null : (
+        <p className="ufa:text-xs ufa:text-muted-foreground">
+          {t('fill.never')} {t('fill.consentHint')}
+        </p>
+      )}
+    </div>
+  )
+}

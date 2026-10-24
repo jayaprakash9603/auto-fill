@@ -1,7 +1,8 @@
 import type { AutofillController, AutofillHost, AutofillState } from '@ufa/autofill-sdk'
+import { toAutofillError, type AutofillMode, type FillResult } from '@ufa/core'
 import type { AutofillStore } from '@ufa/storage'
 import { PlugZapIcon, RotateCwIcon, SearchXIcon } from 'lucide-react'
-import { useCallback, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 
 import { useAutofillController, useAutofillState } from '../hooks/use-autofill'
 import { useStoreSnapshot } from '../hooks/use-store'
@@ -12,9 +13,11 @@ import { AutofillRoot } from './autofill-root'
 import { AnswerLibrary } from './data/answer-library'
 import { CustomFieldsManager } from './data/custom-fields'
 import { DataManager } from './data/data-manager'
+import { FillSettings } from './data/fill-settings'
 import { ProfileManager } from './data/profile-manager'
 import { ProfileSelector } from './data/profile-selector'
-import { FieldList } from './field-list'
+import { canSelectField, FieldList, isPreselected } from './field-list'
+import { FillBar } from './fill-bar'
 import { ConnectionBadge, PortalStatus } from './portal-status'
 import { EmptyState, ErrorState, PermissionNotice, RestrictedPageState } from './states'
 import { Button } from './ui/button'
@@ -131,7 +134,7 @@ function PanelBody({
           </TabsList>
         </div>
         <TabsContent value="page" className={TAB_CONTENT}>
-          <PanelContent state={state} host={host} onReconnect={reconnect} />
+          <PanelContent state={state} controller={controller} host={host} onReconnect={reconnect} />
         </TabsContent>
         <TabsContent value="answers" className={TAB_CONTENT}>
           <StoreGate store={store}>
@@ -150,7 +153,14 @@ function PanelBody({
           <StoreGate store={store}>{(ready) => <ProfileManager store={ready} />}</StoreGate>
         </TabsContent>
         <TabsContent value="data" className={TAB_CONTENT}>
-          <StoreGate store={store}>{(ready) => <DataManager store={ready} />}</StoreGate>
+          <StoreGate store={store}>
+            {(ready) => (
+              <>
+                <FillSettings store={ready} currentSite={state.page?.hostname ?? null} />
+                <DataManager store={ready} className="ufa:border-t ufa:border-border ufa:pt-3" />
+              </>
+            )}
+          </StoreGate>
         </TabsContent>
       </Tabs>
     </div>
@@ -185,10 +195,12 @@ function StoreGate({
 
 function PanelContent({
   state,
+  controller,
   host,
   onReconnect,
 }: {
   state: AutofillState
+  controller: AutofillController | null
   host?: AutofillHost
   onReconnect: () => void
 }): ReactNode {
@@ -235,10 +247,134 @@ function PanelContent({
     return (
       <>
         <PortalStatus page={state.page} />
-        <FieldList fields={state.fields} matches={state.matches} scanning={state.scanning} />
+        {controller ? (
+          <PageFields key={state.page.url} state={state} controller={controller} />
+        ) : (
+          <FieldList fields={state.fields} matches={state.matches} scanning={state.scanning} />
+        )}
       </>
     )
   }
 
   return <EmptyState icon={<PlugZapIcon />} title={t('status.idle')} />
+}
+
+/**
+ * The page's fields with selection and the fill action. Confident matches start selected; the
+ * user's own ticks and unticks are kept across rescans until the page changes.
+ */
+function PageFields({
+  state,
+  controller,
+}: {
+  state: AutofillState
+  controller: AutofillController
+}) {
+  const t = useTranslate()
+  const snapshot = useStoreSnapshot(controller.store)
+  const mode = snapshot.settings.mode
+  const [ticked, setTicked] = useState<ReadonlySet<string>>(() => new Set())
+  const [unticked, setUnticked] = useState<ReadonlySet<string>>(() => new Set())
+  const [choices, setChoices] = useState<Record<string, string>>({})
+  const [lastResults, setLastResults] = useState<FillResult[] | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+
+  const { selected, selectable } = useMemo(() => {
+    const chosen = new Set<string>()
+    const available: string[] = []
+    if (mode === 'suggest') return { selected: chosen, selectable: available }
+    for (const field of state.fields) {
+      const match = state.matches[field.id]
+      const decision = state.decisions[field.id]
+      if (!canSelectField(match, decision, choices[field.id] !== undefined)) continue
+      if (field.sensitivity === 'normal') available.push(field.id)
+      const preselected = isPreselected(field, match, decision) && !unticked.has(field.id)
+      if (ticked.has(field.id) || preselected) chosen.add(field.id)
+    }
+    return { selected: chosen, selectable: available }
+  }, [state.fields, state.matches, state.decisions, choices, ticked, unticked, mode])
+
+  const toggle = useCallback((fieldId: string, on: boolean) => {
+    const add = (set: ReadonlySet<string>) => new Set([...set, fieldId])
+    const remove = (set: ReadonlySet<string>) => new Set([...set].filter((id) => id !== fieldId))
+    setTicked((current) => (on ? add(current) : remove(current)))
+    setUnticked((current) => (on ? remove(current) : add(current)))
+  }, [])
+
+  const choose = useCallback(
+    (fieldId: string, answerId: string) => {
+      setChoices((current) => ({ ...current, [fieldId]: answerId }))
+      toggle(fieldId, true)
+    },
+    [toggle],
+  )
+
+  const selectAll = useCallback(() => {
+    setTicked((current) => new Set([...current, ...selectable]))
+    setUnticked((current) => new Set([...current].filter((id) => !selectable.includes(id))))
+  }, [selectable])
+
+  const fill = useCallback(async () => {
+    setMessage(null)
+    try {
+      setLastResults(await controller.fill({ fieldIds: [...selected], choices }))
+    } catch (error) {
+      setMessage(toAutofillError(error).message)
+    }
+  }, [controller, selected, choices])
+
+  const undo = useCallback(async () => {
+    setMessage(null)
+    try {
+      const restored = (await controller.undo()).filter((entry) => entry.status === 'restored')
+      setLastResults(null)
+      setMessage(
+        restored.length === 1 ? t('fill.undoneOne') : t('fill.undone', { count: restored.length }),
+      )
+    } catch (error) {
+      setMessage(toAutofillError(error).message)
+    }
+  }, [controller, t])
+
+  const changeMode = useCallback(
+    (next: AutofillMode) => {
+      setMessage(null)
+      void controller.store.settings
+        .update({ mode: next })
+        .catch((error: unknown) => setMessage(toAutofillError(error).message))
+    },
+    [controller],
+  )
+
+  const hasFields = state.fields.length > 0
+  return (
+    <>
+      {hasFields && snapshot.status === 'ready' ? (
+        <FillBar
+          mode={mode}
+          onModeChange={changeMode}
+          selectedCount={selected.size}
+          selectableCount={selectable.length}
+          onFill={() => void fill()}
+          onSelectAll={selectAll}
+          filling={state.filling}
+          canUndo={state.canUndo}
+          onUndo={() => void undo()}
+          lastResults={lastResults}
+          message={message}
+        />
+      ) : null}
+      <FieldList
+        fields={state.fields}
+        matches={state.matches}
+        decisions={state.decisions}
+        results={state.results}
+        {...(mode === 'suggest' ? {} : { selected, onSelectedChange: toggle })}
+        choices={choices}
+        onChoiceChange={choose}
+        answers={snapshot.answers}
+        scanning={state.scanning}
+      />
+    </>
+  )
 }

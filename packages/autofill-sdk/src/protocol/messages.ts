@@ -1,13 +1,19 @@
 import {
   AUTOFILL_ERROR_CODES,
   AutofillError,
+  fillOperationSchema,
+  fillResultSchema,
   pageEventSchema,
   pageInfoSchema,
+  restoreResultSchema,
   scanRequestSchema,
   scanResultSchema,
   type AutofillErrorCode,
+  type FillOperation,
+  type FillResult,
   type PageEvent,
   type PageInfo,
+  type RestoreResult,
   type ScanRequest,
   type ScanResult,
 } from '@ufa/core'
@@ -28,12 +34,32 @@ export interface ScanRequestMessage {
   type: 'scan'
   request: ScanRequest
 }
-export type RuntimeRequest = PingRequest | ScanRequestMessage
+export interface FillRequestMessage {
+  channel: typeof PROTOCOL_CHANNEL
+  kind: 'request'
+  requestId: string
+  type: 'fill'
+  operations: FillOperation[]
+}
+export interface RestoreRequestMessage {
+  channel: typeof PROTOCOL_CHANNEL
+  kind: 'request'
+  requestId: string
+  type: 'restore'
+  snapshotId: string
+}
+export type RuntimeRequest =
+  | PingRequest
+  | ScanRequestMessage
+  | FillRequestMessage
+  | RestoreRequestMessage
 export type RuntimeRequestType = RuntimeRequest['type']
 
 export interface RuntimeResponseDataMap {
   ping: PageInfo
   scan: ScanResult
+  fill: FillResult[]
+  restore: RestoreResult[]
 }
 export type RuntimeResponseData<T extends RuntimeRequestType> = RuntimeResponseDataMap[T]
 
@@ -49,6 +75,9 @@ export interface RuntimeEventEnvelope {
   event: PageEvent
 }
 
+/** Upper bound for operations and results in one message; a page has at most 5,000 fields. */
+const MAX_OPERATIONS = 5_000
+
 const requestBase = {
   channel: z.literal(PROTOCOL_CHANNEL),
   kind: z.literal('request'),
@@ -58,12 +87,20 @@ const requestBase = {
 export const runtimeRequestSchema = z.discriminatedUnion('type', [
   z.object({ ...requestBase, type: z.literal('ping') }),
   z.object({ ...requestBase, type: z.literal('scan'), request: scanRequestSchema }),
+  z.object({
+    ...requestBase,
+    type: z.literal('fill'),
+    operations: z.array(fillOperationSchema).max(MAX_OPERATIONS),
+  }),
+  z.object({ ...requestBase, type: z.literal('restore'), snapshotId: z.string().min(1).max(100) }),
 ])
 
 /** Response payload schemas, validated by the caller so a compromised page cannot inject shapes. */
 export const runtimeResponseDataSchemas = {
   ping: pageInfoSchema,
   scan: scanResultSchema,
+  fill: z.array(fillResultSchema).max(MAX_OPERATIONS),
+  restore: z.array(restoreResultSchema).max(MAX_OPERATIONS),
 } satisfies { [K in RuntimeRequestType]: z.ZodType<RuntimeResponseDataMap[K]> }
 
 export const runtimeErrorSchema = z.object({

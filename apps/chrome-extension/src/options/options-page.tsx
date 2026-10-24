@@ -12,6 +12,7 @@ import {
   DataManager,
   EmptyState,
   ErrorState,
+  FillSettings,
   ProfileManager,
   ProfileSelector,
   Spinner,
@@ -28,7 +29,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { createHost } from '../shared/host'
 
 const WEB_ORIGIN = /^https?:\/\//
-const SECTIONS = ['answers', 'profiles', 'data', 'access'] as const
+const SECTIONS = ['answers', 'profiles', 'filling', 'data', 'access'] as const
 type Section = (typeof SECTIONS)[number]
 
 const sectionFromHash = (): Section => {
@@ -123,6 +124,7 @@ export function OptionsPage() {
           <TabsList aria-label="Settings sections" className="ufa:self-start">
             <TabsTrigger value="answers">Answers</TabsTrigger>
             <TabsTrigger value="profiles">Profiles</TabsTrigger>
+            <TabsTrigger value="filling">Filling</TabsTrigger>
             <TabsTrigger value="data">Data</TabsTrigger>
             <TabsTrigger value="access">Site access &amp; privacy</TabsTrigger>
           </TabsList>
@@ -145,6 +147,15 @@ export function OptionsPage() {
               <Card>
                 <CardContent className="ufa:pt-4">
                   <ProfileManager store={store} />
+                </CardContent>
+              </Card>
+            </StoreReady>
+          </TabsContent>
+          <TabsContent value="filling">
+            <StoreReady store={store}>
+              <Card>
+                <CardContent className="ufa:pt-4">
+                  <FillSettings store={store} />
                 </CardContent>
               </Card>
             </StoreReady>

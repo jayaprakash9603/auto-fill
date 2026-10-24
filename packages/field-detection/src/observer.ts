@@ -1,3 +1,5 @@
+import { isInIgnoredRegion } from './dom'
+
 /** Attributes whose changes can add, remove, reveal, relabel or disable a control. */
 export const OBSERVED_ATTRIBUTES = [
   'aria-checked',
@@ -61,6 +63,10 @@ export function createFieldObserver(options: FieldObserverOptions): FieldObserve
       options.onChange()
     }, debounceMs)
   }
+  const onMutations = (records: MutationRecord[]) => {
+    if (records.every((record) => isInIgnoredRegion(record.target))) return
+    schedule()
+  }
 
   const attach = () => {
     if (!observer) return
@@ -79,12 +85,13 @@ export function createFieldObserver(options: FieldObserverOptions): FieldObserve
   return {
     start() {
       if (observer) return
-      observer = new MutationObserverImpl(schedule)
+      observer = new MutationObserverImpl(onMutations)
       attach()
     },
     refresh() {
       if (!observer) return
-      if (observer.takeRecords().length > 0) schedule()
+      const pending = observer.takeRecords()
+      if (pending.length > 0) onMutations(pending)
       observer.disconnect()
       attach()
     },

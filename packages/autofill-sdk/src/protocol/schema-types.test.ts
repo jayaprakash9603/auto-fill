@@ -36,6 +36,14 @@ const checks: Record<string, true> = {
     typeof runtimeResponseDataSchemas.scan,
     RuntimeResponseData<'scan'>
   >,
+  FillResponse: true satisfies Out<
+    typeof runtimeResponseDataSchemas.fill,
+    RuntimeResponseData<'fill'>
+  >,
+  RestoreResponse: true satisfies Out<
+    typeof runtimeResponseDataSchemas.restore,
+    RuntimeResponseData<'restore'>
+  >,
 }
 
 describe('protocol types match their schemas', () => {

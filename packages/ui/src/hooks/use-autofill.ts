@@ -7,7 +7,11 @@ const DETACHED_STATE: AutofillState = {
   error: null,
   fields: [],
   matches: {},
+  decisions: {},
+  results: {},
   scanning: false,
+  filling: false,
+  canUndo: false,
   scannedAt: null,
 }
 const noopSubscribe = () => () => {}

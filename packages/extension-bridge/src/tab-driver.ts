@@ -8,12 +8,17 @@ import {
 } from '@ufa/autofill-sdk'
 import {
   AutofillError,
+  fillOperationSchema,
   scanRequestSchema,
   throwIfAborted,
+  toAutofillError,
   type FieldDescriptor,
+  type FillOperation,
+  type FillResult,
   type PageDriver,
   type PageEvent,
   type PageInfo,
+  type RestoreResult,
   type ScanResult,
 } from '@ufa/core'
 
@@ -30,6 +35,8 @@ export interface ExtensionTabDriverOptions {
   pingTimeoutMs?: number
   /** How long to wait for each frame to finish a field scan. */
   scanTimeoutMs?: number
+  /** How long to wait for each frame to finish filling or restoring its fields. */
+  fillTimeoutMs?: number
 }
 
 export interface ExtensionTabDriver extends PageDriver {
@@ -64,12 +71,29 @@ export function createExtensionTabDriver(options: ExtensionTabDriverOptions): Ex
   const { chrome } = options
   const pingTimeout = options.pingTimeoutMs ?? 2_500
   const scanTimeout = options.scanTimeoutMs ?? 10_000
+  const fillTimeout = options.fillTimeoutMs ?? 60_000
   const listeners = new Set<(event: PageEvent) => void>()
   let tabId: number | null = null
   let tabUrl: string | undefined
   let frameIds: number[] = []
+  /** The frame that reported each field, so fills reach the document that owns it. */
+  const fieldFrames = new Map<string, number>()
+  /** Tab-level snapshot ids, each made of the snapshots of the frames it changed. */
+  const snapshots = new Map<string, { frameId: number; snapshotId: string }[]>()
+  let snapshotCounter = 0
   let detachChromeListeners: (() => void) | null = null
   let disposed = false
+
+  const rememberFrames = (fields: readonly FieldDescriptor[], frameId: number) => {
+    for (const [id, owner] of fieldFrames) if (owner === frameId) fieldFrames.delete(id)
+    for (const field of fields) fieldFrames.set(field.id, frameId)
+  }
+
+  const requireConnection = () => {
+    if (disposed) throw new AutofillError('DESTROYED', 'The tab driver was disposed.')
+    if (tabId == null || frameIds.length === 0)
+      throw new AutofillError('CONTENT_UNAVAILABLE', 'Connect to the page first.')
+  }
 
   const emit = (event: PageEvent) => listeners.forEach((listener) => listener(event))
 
@@ -128,6 +152,7 @@ export function createExtensionTabDriver(options: ExtensionTabDriverOptions): Ex
       const { event } = parsed.data
       if (event.type === 'fields-changed') {
         const frameId = sender.frameId ?? 0
+        rememberFrames(event.fields, frameId)
         emit({ type: 'fields-changed', frameId, fields: withFrame(event.fields, frameId) })
       } else {
         emit(event)
@@ -188,6 +213,7 @@ export function createExtensionTabDriver(options: ExtensionTabDriverOptions): Ex
         )
       tabId = tab.id
       tabUrl = tab.url
+      fieldFrames.clear()
       attachChromeListeners()
 
       const injected = await inject(tab.id, tab.url)
@@ -231,11 +257,93 @@ export function createExtensionTabDriver(options: ExtensionTabDriverOptions): Ex
           'CONTENT_UNAVAILABLE',
           'The page stopped responding. Reload the page and try again.',
         )
+      for (const [frameId, result] of answered) rememberFrames(result.fields, frameId)
       return {
         page: { ...top[1].page, frameCount: frameIds.length },
         fields: answered.flatMap(([frameId, result]) => withFrame(result.fields, frameId)),
         scannedAt: Math.max(...answered.map(([, result]) => result.scannedAt)),
       }
+    },
+    async fill(operations, signal) {
+      requireConnection()
+      const parsed = operations.map((operation) => fillOperationSchema.parse(operation))
+      const byFrame = new Map<number, FillOperation[]>()
+      const results = new Map<FillOperation, FillResult>()
+      for (const operation of parsed) {
+        const frameId = fieldFrames.get(operation.fieldId)
+        if (frameId === undefined) {
+          results.set(operation, {
+            fieldId: operation.fieldId,
+            status: 'failed',
+            reason: 'The field is no longer on the page.',
+            verified: false,
+            snapshotId: null,
+          })
+          continue
+        }
+        byFrame.set(frameId, [...(byFrame.get(frameId) ?? []), operation])
+      }
+      snapshotCounter += 1
+      const tabSnapshotId = `t${Date.now().toString(36)}${snapshotCounter}`
+      const parts: { frameId: number; snapshotId: string }[] = []
+      // Frames one after another, top frame first, like a person working down the page.
+      for (const frameId of [...byFrame.keys()].sort((a, b) => a - b)) {
+        const frameOperations = byFrame.get(frameId) ?? []
+        throwIfAborted(signal)
+        let frameResults: FillResult[]
+        try {
+          frameResults = await send('fill', { operations: frameOperations }, frameId, fillTimeout)
+        } catch (error) {
+          const reason = toAutofillError(error).message
+          frameResults = frameOperations.map((operation) => ({
+            fieldId: operation.fieldId,
+            status: 'failed',
+            reason,
+            verified: false,
+            snapshotId: null,
+          }))
+        }
+        const frameSnapshot = frameResults.find((result) => result.snapshotId)?.snapshotId
+        if (frameSnapshot) parts.push({ frameId, snapshotId: frameSnapshot })
+        frameOperations.forEach((operation, index) => {
+          const result = frameResults[index]
+          results.set(
+            operation,
+            result && result.fieldId === operation.fieldId
+              ? { ...result, snapshotId: result.snapshotId ? tabSnapshotId : null }
+              : {
+                  fieldId: operation.fieldId,
+                  status: 'failed',
+                  reason: 'The page returned no result for this field.',
+                  verified: false,
+                  snapshotId: null,
+                },
+          )
+        })
+      }
+      if (parts.length > 0) snapshots.set(tabSnapshotId, parts)
+      return parsed.map((operation) => results.get(operation) as FillResult)
+    },
+    async restore(snapshotId, signal) {
+      requireConnection()
+      const parts = snapshots.get(snapshotId)
+      if (!parts) return []
+      snapshots.delete(snapshotId)
+      const results: RestoreResult[] = []
+      let failure: unknown = null
+      for (const part of parts) {
+        throwIfAborted(signal)
+        try {
+          results.push(
+            ...(await send('restore', { snapshotId: part.snapshotId }, part.frameId, fillTimeout)),
+          )
+        } catch (error) {
+          failure = error
+        }
+      }
+      // A frame that reloaded has lost its snapshot; report that only when nothing was restored.
+      if (failure && results.length === 0) throw toAutofillError(failure)
+      return results
     },
     subscribe(listener) {
       listeners.add(listener)
@@ -245,6 +353,8 @@ export function createExtensionTabDriver(options: ExtensionTabDriverOptions): Ex
     async dispose() {
       disposed = true
       listeners.clear()
+      fieldFrames.clear()
+      snapshots.clear()
       detachChromeListeners?.()
       detachChromeListeners = null
     },

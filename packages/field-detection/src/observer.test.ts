@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createFieldObserver } from './observer'
 import { createFieldScanner } from './scanner'
 import { fieldsSignature } from './signature'
-import { loadFixture, wait, type LoadedFixture } from './test-utils/fixtures'
+import { loadFixture, loadHtml, wait, type LoadedFixture } from './test-utils/fixtures'
 
 const opened: LoadedFixture[] = []
 afterEach(() => opened.splice(0).forEach((fixture) => fixture.close()))
@@ -37,6 +37,28 @@ describe('field observer', () => {
     shadowInput.removeAttribute('disabled')
     await wait(60)
     expect(onChange).toHaveBeenCalledTimes(2)
+  })
+
+  it('ignores mutations inside the autofill interface', async () => {
+    const fixture = loadHtml(
+      '<form><input id="name"></form><div class="ufa-root"><p id="status">Idle</p></div>',
+    )
+    opened.push(fixture)
+    const onChange = vi.fn()
+    const observer = createFieldObserver({ document: fixture.document, onChange, debounceMs: 20 })
+    observer.start()
+
+    const status = fixture.document.getElementById('status')!
+    status.textContent = 'Filling'
+    status.setAttribute('class', 'busy')
+    status.append(fixture.document.createElement('input'))
+    await wait(60)
+    expect(onChange).not.toHaveBeenCalled()
+
+    fixture.document.getElementById('name')!.setAttribute('hidden', '')
+    await wait(60)
+    expect(onChange).toHaveBeenCalledTimes(1)
+    observer.stop()
   })
 
   it('distinguishes structural changes from value changes', () => {

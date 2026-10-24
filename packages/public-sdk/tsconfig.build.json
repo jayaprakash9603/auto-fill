@@ -9,6 +9,7 @@
     "../core/src",
     "../field-detection/src",
     "../matching-engine/src",
+    "../form-actions/src",
     "../storage/src",
     "../autofill-sdk/src",
     "../extension-bridge/src",

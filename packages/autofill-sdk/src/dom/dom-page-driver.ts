@@ -14,6 +14,7 @@ import {
   fieldsSignature,
   type FieldScanner,
 } from '@ufa/field-detection'
+import { createFormActions } from '@ufa/form-actions'
 
 import { SDK_VERSION } from '../version'
 
@@ -26,6 +27,8 @@ export interface DomPageDriverOptions {
   observe?: boolean
   /** Quiet period before a burst of DOM mutations triggers a rescan. */
   mutationDebounceMs?: number
+  /** How long a fill waits for dropdown options that load late. */
+  optionTimeoutMs?: number
   onPluginError?: (pluginId: string, error: unknown) => void
 }
 
@@ -46,6 +49,10 @@ export function createDomPageDriver(options: DomPageDriverOptions = {}): DomPage
     document: doc,
     ...(options.detectors ? { detectors: options.detectors } : {}),
     ...(options.onPluginError ? { onPluginError: options.onPluginError } : {}),
+  })
+  const actions = createFormActions({
+    resolve: (fieldId, fingerprint) => scanner.resolve(fieldId, fingerprint),
+    ...(options.optionTimeoutMs !== undefined ? { optionTimeoutMs: options.optionTimeoutMs } : {}),
   })
   let lastRequest: ScanRequest | null = null
   let lastSignature = ''
@@ -98,6 +105,14 @@ export function createDomPageDriver(options: DomPageDriverOptions = {}): DomPage
         observer.refresh()
       }
       return { page: pageInfo(), fields, scannedAt: Date.now() }
+    },
+    async fill(operations, signal) {
+      throwIfAborted(signal)
+      return actions.fill(operations, signal)
+    },
+    async restore(snapshotId, signal) {
+      throwIfAborted(signal)
+      return actions.restore(snapshotId, signal)
     },
     subscribe(listener) {
       listeners.add(listener)

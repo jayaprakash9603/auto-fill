@@ -1,4 +1,11 @@
-import type { PageEvent, PageInfo, ScanRequestInput, ScanResult } from '../domain/page'
+import type {
+  FillOperationInput,
+  PageEvent,
+  PageInfo,
+  ScanRequestInput,
+  ScanResult,
+} from '../domain/page'
+import type { FillResult, RestoreResult } from '../domain/results'
 
 /**
  * The only way the engine touches a page. The DOM driver runs where the document lives (content
@@ -14,6 +21,14 @@ export interface PageDriver {
    * `fields-changed` whenever the structure of a frame's fields changes.
    */
   scan(request?: ScanRequestInput, signal?: AbortSignal): Promise<ScanResult>
+  /**
+   * Writes values into fields, one result per operation, in operation order. The page side
+   * re-checks every safety rule against the live control and never submits a form. Changed
+   * fields share a snapshot id that `restore` accepts.
+   */
+  fill(operations: readonly FillOperationInput[], signal?: AbortSignal): Promise<FillResult[]>
+  /** Puts back the values a fill replaced, unless the user changed the field since. */
+  restore(snapshotId: string, signal?: AbortSignal): Promise<RestoreResult[]>
   subscribe(listener: (event: PageEvent) => void): () => void
   dispose(): Promise<void>
 }

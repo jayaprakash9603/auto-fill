@@ -96,6 +96,55 @@ describe('content runtime', () => {
     ])
     document.body.innerHTML = ''
   })
+
+  it('fills and restores fields on request, re-checking safety in the page', async () => {
+    document.body.innerHTML = `
+      <label for="name">Full name</label><input id="name" />
+      <label for="pw">Password</label><input id="pw" type="password" />`
+    const loop = createLoopbackPort()
+    handle = installAutofillContentRuntime({ port: loop.port })
+    const { fields } = readResponse(
+      'scan',
+      await loop.send(createRequest('scan', { request: { includeHidden: false, includeDisabled: false } })),
+    )
+    const [name, password] = fields
+    const value = { kind: 'text', text: 'Ada Lovelace' } as const
+
+    const results = readResponse(
+      'fill',
+      await loop.send(
+        createRequest('fill', {
+          operations: [
+            { fieldId: name!.id, fingerprint: name!.fingerprint, value, allowOverwrite: false, source: 'saved', explicitlySelected: true },
+            { fieldId: password!.id, fingerprint: null, value, allowOverwrite: true, source: 'saved', explicitlySelected: true },
+          ],
+        }),
+      ),
+    )
+    expect(results).toMatchObject([
+      { status: 'filled', verified: true },
+      { status: 'skipped', reason: expect.stringContaining('never filled') },
+    ])
+    expect((document.getElementById('name') as HTMLInputElement).value).toBe('Ada Lovelace')
+    expect((document.getElementById('pw') as HTMLInputElement).value).toBe('')
+
+    const restored = readResponse(
+      'restore',
+      await loop.send(createRequest('restore', { snapshotId: results[0]!.snapshotId! })),
+    )
+    expect(restored).toEqual([{ fieldId: name!.id, status: 'restored', reason: null }])
+    expect((document.getElementById('name') as HTMLInputElement).value).toBe('')
+
+    const malformed = await loop.send({
+      channel: 'ufa/v1',
+      kind: 'request',
+      requestId: 'x',
+      type: 'fill',
+      operations: [{ fieldId: name!.id, value: { kind: 'script', code: 'alert(1)' }, source: 'saved' }],
+    })
+    expect(() => readResponse('fill', malformed)).toThrow(/Malformed request/)
+    document.body.innerHTML = ''
+  })
 })
 
 describe('createAutofill', () => {

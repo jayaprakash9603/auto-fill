@@ -11,7 +11,18 @@ export { DataManager, type DataManagerProps } from './components/data/data-manag
 export { ProfileDetailsDialog } from './components/data/profile-details'
 export { ProfileManager, type ProfileManagerProps } from './components/data/profile-manager'
 export { ProfileSelector, type ProfileSelectorProps } from './components/data/profile-selector'
-export { FieldList, type FieldListProps } from './components/field-list'
+export {
+  FillSettings,
+  normalizeSite,
+  type FillSettingsProps,
+} from './components/data/fill-settings'
+export {
+  canSelectField,
+  FieldList,
+  isPreselected,
+  type FieldListProps,
+} from './components/field-list'
+export { FillBar, type FillBarProps } from './components/fill-bar'
 export { ConnectionBadge, PortalStatus } from './components/portal-status'
 export {
   EmptyState,

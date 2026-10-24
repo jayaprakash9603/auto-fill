@@ -7,6 +7,7 @@ export type {
   AutofillState,
   AutofillStateError,
   ConnectionStatus,
+  FillRequest,
 } from './controller/types'
 export {
   createDomPageDriver,

@@ -14,7 +14,7 @@ import {
 import { createContextResolver } from './context'
 import { describeControl, type DescribedControl } from './describe'
 import { BUILTIN_DETECTORS } from './detectors'
-import { isElement, legendOf } from './dom'
+import { isElement, isInIgnoredRegion, legendOf } from './dom'
 import { createIdentityRegistry } from './identity'
 import { indexTree, positionOf } from './tree'
 import { createVisibilityProbe } from './visibility'
@@ -104,7 +104,8 @@ export function createFieldScanner(options: FieldScannerOptions): FieldScanner {
             continue
           }
           const elements = [control.element, ...(control.members ?? [])]
-          if (elements.some((element) => claimed.has(element))) continue
+          if (elements.some((element) => claimed.has(element) || isInIgnoredRegion(element)))
+            continue
           elements.forEach((element) => claimed.add(element))
           found.push({ control, detectorId: detector.id })
         }

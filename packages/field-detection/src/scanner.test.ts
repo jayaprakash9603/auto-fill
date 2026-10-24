@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { fieldDescriptorSchema, type FieldDescriptor, type ScanRequestInput } from '@ufa/core'
 
 import { createFieldScanner } from './scanner'
-import { loadFixture, type LoadedFixture } from './test-utils/fixtures'
+import { loadFixture, loadHtml, type LoadedFixture } from './test-utils/fixtures'
 
 const opened: LoadedFixture[] = []
 afterEach(() => opened.splice(0).forEach((fixture) => fixture.close()))
@@ -195,6 +195,27 @@ describe('field scanner: shadow DOM', () => {
     expect(fields.some((field) => field.label === 'Closed component')).toBe(false)
     expect(scanner.shadowRoots).toHaveLength(6)
     expect(fields.every((field) => field.formTitle === 'Component library application')).toBe(true)
+  })
+})
+
+describe('field scanner: ignored regions', () => {
+  it('never reads the autofill interface or regions the page marks as ignored', () => {
+    const fixture = loadHtml(`
+      <form>
+        <label for="name">Full name</label><input id="name">
+        <div data-ufa-ignore><label for="search">Search</label><input id="search"></div>
+      </form>
+      <div class="ufa-root">
+        <label for="site">Trusted site</label><input id="site">
+        <div id="host"></div>
+      </div>
+      <div data-ufa-portal><label for="dialog">Answer</label><input id="dialog"></div>`)
+    opened.push(fixture)
+    const shadow = fixture.document.getElementById('host')!.attachShadow({ mode: 'open' })
+    shadow.innerHTML = '<label for="inner">Inner</label><input id="inner">'
+
+    const fields = createFieldScanner({ document: fixture.document }).scan()
+    expect(fields.map((field) => field.label)).toEqual(['Full name'])
   })
 })
 

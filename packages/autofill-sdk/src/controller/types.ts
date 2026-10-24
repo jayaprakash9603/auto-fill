@@ -3,11 +3,14 @@ import type {
   AutofillEventHandler,
   AutofillEventType,
   FieldDescriptor,
+  FillResult,
   Logger,
   MatchResult,
   PageDriver,
   PageInfo,
   PluginRegistry,
+  PolicyDecision,
+  RestoreResult,
   StorageAdapter,
 } from '@ufa/core'
 import type { AutofillStore } from '@ufa/storage'
@@ -34,9 +37,36 @@ export interface AutofillState {
   fields: FieldDescriptor[]
   /** How each field matches the saved answers of the active profile, by field id. */
   matches: Record<string, MatchResult>
+  /**
+   * What the policies allow for each matched field under the current mode and settings: `fill`
+   * without selection (trusted mode), `confirm` after the user selects it, or why not.
+   */
+  decisions: Record<string, PolicyDecision>
+  /** Outcome of the latest fill or undo for each field it touched, by field id. */
+  results: Record<string, FillResult>
   scanning: boolean
+  /** A fill or undo is running. */
+  filling: boolean
+  /** The latest fill changed fields and can be undone. */
+  canUndo: boolean
   /** When the field list was last refreshed, by a scan or a page update. */
   scannedAt: number | null
+}
+
+export interface FillRequest {
+  /**
+   * Fields the user selected. Each is filled when its policy decision is `confirm` or `fill`, and
+   * reported as skipped with the reason otherwise. Consent fields count as selected only when
+   * listed here. Without `fieldIds`, only fields the policy lets fill unselected (trusted mode on
+   * a trusted site) are filled.
+   */
+  fieldIds?: readonly string[]
+  /**
+   * A saved answer the user picked for a field (answer id by field id), used instead of the best
+   * match, for example to settle an ambiguous field. It must be one of the field's compatible
+   * candidates.
+   */
+  choices?: Readonly<Record<string, string>>
 }
 
 export interface AutofillConfiguration {
@@ -49,7 +79,7 @@ export interface AutofillConfiguration {
    * controller creates its own and disposes it on `destroy()`.
    */
   store?: AutofillStore
-  /** Extra classifiers and matching strategies; the built-in ones always run. */
+  /** Extra classifiers, matching strategies and policies; the built-in ones always run. */
   registry?: PluginRegistry
   logger?: Logger
   /** Injectable clock for deterministic tests. */
@@ -69,6 +99,14 @@ export interface AutofillController {
   connect(): Promise<PageInfo | null>
   /** Rescans the connected page (connecting first if needed) and returns the fields. */
   scan(): Promise<FieldDescriptor[]>
+  /**
+   * Fills the fields the request and the policies allow, with the saved answers matched to them,
+   * and rescans. Returns one result per field acted on or explicitly requested. Never submits.
+   * Page actions run one at a time; a second call waits for the first.
+   */
+  fill(request?: FillRequest): Promise<FillResult[]>
+  /** Puts back what the latest fill replaced, except fields the user changed since. */
+  undo(): Promise<RestoreResult[]>
   destroy(): Promise<void>
 }
 

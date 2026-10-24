@@ -69,6 +69,17 @@ export function closestAcrossShadow(element: Element, selector: string): Element
   return null
 }
 
+/**
+ * Regions the scanner never reads: the autofill interface itself, so a panel embedded in the page
+ * never detects or fills its own controls, and anything the page marks with `data-ufa-ignore`.
+ */
+export const IGNORED_REGION_SELECTOR = '.ufa-root, [data-ufa-portal], [data-ufa-ignore]'
+
+export function isInIgnoredRegion(node: Node): boolean {
+  const element = isElement(node) ? node : node.parentElement
+  return !!element && closestAcrossShadow(element, IGNORED_REGION_SELECTOR) !== null
+}
+
 export function rootOf(element: Element): ControlRoot {
   const root = element.getRootNode()
   return isShadowRoot(root) ? root : element.ownerDocument

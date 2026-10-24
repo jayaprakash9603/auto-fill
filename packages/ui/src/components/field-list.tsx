@@ -1,10 +1,14 @@
 import {
   semanticKeyLabel,
+  type AnswerRecord,
   type FieldDescriptor,
   type FieldValue,
+  type FillResult,
   type LabelSource,
+  type MatchCandidate,
   type MatchResult,
   type MatchState,
+  type PolicyDecision,
 } from '@ufa/core'
 import { AppWindowIcon, FormInputIcon, LockIcon, ShieldAlertIcon } from 'lucide-react'
 import { useId, useMemo } from 'react'
@@ -13,6 +17,7 @@ import { useTranslate, type MessageKey, type Translate } from '../i18n/messages'
 import { cn } from '../lib/cn'
 import { EmptyState } from './states'
 import { Badge, type BadgeProps } from './ui/badge'
+import { Checkbox, NativeSelect } from './ui/form-controls'
 import { Spinner } from './ui/misc'
 
 /** Match states with their own badge; skipped and unsupported fields already show why. */
@@ -25,6 +30,42 @@ const STATE_BADGES: Partial<Record<MatchState, BadgeProps['variant']>> = {
 }
 
 const REVIEW_STATES: ReadonlySet<MatchState> = new Set(['suggested', 'ambiguous', 'incompatible'])
+
+const RESULT_BADGES: Record<FillResult['status'], BadgeProps['variant']> = {
+  filled: 'success',
+  unchanged: 'muted',
+  skipped: 'muted',
+  failed: 'destructive',
+}
+
+/**
+ * Whether the user may select a field for filling: the policies allow it, or the field is
+ * ambiguous and the user has picked one of its answers.
+ */
+export function canSelectField(
+  match: MatchResult | undefined,
+  decision: PolicyDecision | undefined,
+  hasChoice: boolean,
+): boolean {
+  if (!decision) return false
+  if (decision.action === 'fill' || decision.action === 'confirm') return true
+  return decision.action === 'suggest' && match?.state === 'ambiguous' && hasChoice
+}
+
+/** Fields selected up front: trusted fills and confident matches, never consent fields. */
+export function isPreselected(
+  field: FieldDescriptor,
+  match: MatchResult | undefined,
+  decision: PolicyDecision | undefined,
+): boolean {
+  if (field.sensitivity !== 'normal' || !decision) return false
+  return decision.action === 'fill' || (decision.action === 'confirm' && match?.state === 'matched')
+}
+
+function choosable(match: MatchResult | undefined): MatchCandidate[] {
+  if (match?.state !== 'ambiguous') return []
+  return match.candidates.filter((candidate) => candidate.compatible && candidate.fillValue)
+}
 
 function describeFill(value: FieldValue, field: FieldDescriptor, t: Translate): string {
   switch (value.kind) {
@@ -72,11 +113,39 @@ export interface FieldListProps {
   fields: readonly FieldDescriptor[]
   /** How each field matches the saved answers, by field id. */
   matches?: Readonly<Record<string, MatchResult>>
+  /** What the policies allow for each field, by field id. */
+  decisions?: Readonly<Record<string, PolicyDecision>>
+  /** Outcome of the latest fill for each field it touched, by field id. */
+  results?: Readonly<Record<string, FillResult>>
+  /** Fields selected for filling. Omit to show the list without selection controls. */
+  selected?: ReadonlySet<string>
+  onSelectedChange?: (fieldId: string, selected: boolean) => void
+  /** The saved answer picked for each ambiguous field, by field id. */
+  choices?: Readonly<Record<string, string>>
+  onChoiceChange?: (fieldId: string, answerId: string) => void
+  /** Saved answers, to name the choices of ambiguous fields. */
+  answers?: readonly AnswerRecord[]
   scanning?: boolean
   className?: string
 }
 
 const NO_MATCHES: Readonly<Record<string, MatchResult>> = {}
+const NO_DECISIONS: Readonly<Record<string, PolicyDecision>> = {}
+const NO_RESULTS: Readonly<Record<string, FillResult>> = {}
+const NO_CHOICES: Readonly<Record<string, string>> = {}
+const NO_ANSWERS: readonly AnswerRecord[] = []
+
+/** Everything a row needs besides its field; shared by all rows of the list. */
+interface RowContext {
+  matches: Readonly<Record<string, MatchResult>>
+  decisions: Readonly<Record<string, PolicyDecision>>
+  results: Readonly<Record<string, FillResult>>
+  selected: ReadonlySet<string> | undefined
+  onSelectedChange: ((fieldId: string, selected: boolean) => void) | undefined
+  choices: Readonly<Record<string, string>>
+  onChoiceChange: ((fieldId: string, answerId: string) => void) | undefined
+  answerLabels: ReadonlyMap<string, string>
+}
 
 function summarize(matches: Readonly<Record<string, MatchResult>>) {
   let ready = 0
@@ -92,11 +161,19 @@ function summarize(matches: Readonly<Record<string, MatchResult>>) {
 
 /**
  * Overview of detected fields, grouped by section: safety and support badges, what each field
- * was recognized as, and the saved answer proposed for it with confidence and explanation.
+ * was recognized as, the saved answer proposed for it with confidence and explanation, and, when
+ * selection is enabled, a checkbox for each field the policies let the user fill.
  */
 export function FieldList({
   fields,
   matches = NO_MATCHES,
+  decisions = NO_DECISIONS,
+  results = NO_RESULTS,
+  selected,
+  onSelectedChange,
+  choices = NO_CHOICES,
+  onChoiceChange,
+  answers = NO_ANSWERS,
   scanning = false,
   className,
 }: FieldListProps) {
@@ -104,6 +181,20 @@ export function FieldList({
   const headingId = useId()
   const groups = useMemo(() => groupFields(fields, t), [fields, t])
   const summary = useMemo(() => summarize(matches), [matches])
+  const answerLabels = useMemo(
+    () => new Map(answers.map((answer) => [answer.id, answer.label])),
+    [answers],
+  )
+  const context: RowContext = {
+    matches,
+    decisions,
+    results,
+    selected,
+    onSelectedChange,
+    choices,
+    onChoiceChange,
+    answerLabels,
+  }
 
   return (
     <section
@@ -145,19 +236,13 @@ export function FieldList({
       ) : null}
 
       {groups.map((group) => (
-        <FieldGroupSection key={group.key} group={group} matches={matches} />
+        <FieldGroupSection key={group.key} group={group} context={context} />
       ))}
     </section>
   )
 }
 
-function FieldGroupSection({
-  group,
-  matches,
-}: {
-  group: FieldGroup
-  matches: Readonly<Record<string, MatchResult>>
-}) {
+function FieldGroupSection({ group, context }: { group: FieldGroup; context: RowContext }) {
   const t = useTranslate()
   const headingId = useId()
   return (
@@ -183,19 +268,47 @@ function FieldGroupSection({
       </div>
       <ul className="ufa:divide-y ufa:divide-border">
         {group.fields.map((field) => (
-          <FieldRow key={field.id} field={field} match={matches[field.id]} />
+          <FieldRow key={field.id} field={field} context={context} />
         ))}
       </ul>
     </div>
   )
 }
 
-function FieldRow({ field, match }: { field: FieldDescriptor; match: MatchResult | undefined }) {
+function FieldRow({ field, context }: { field: FieldDescriptor; context: RowContext }) {
   const t = useTranslate()
+  const choiceId = useId()
+  const match = context.matches[field.id]
+  const decision = context.decisions[field.id]
+  const result = context.results[field.id]
+  const choice = context.choices[field.id]
+  const options = choosable(match)
   const inferred = INFERRED_SOURCES[field.labelSource]
   const stateBadge = match ? STATE_BADGES[match.state] : undefined
-  const best = match?.best ?? null
+  const chosen = choice ? options.find((candidate) => candidate.answerId === choice) : undefined
+  const best = chosen ?? match?.best ?? null
   const proposed = best?.fillValue ? describeFill(best.fillValue, field, t) : null
+  const selectable = canSelectField(match, decision, chosen !== undefined)
+  const isSelected = selectable && !!context.selected?.has(field.id)
+  const label = field.label || t('fields.unlabeled')
+  /** A usable answer the policies hold back, e.g. because the field already has a value. */
+  const heldBack =
+    !result &&
+    decision &&
+    (decision.action === 'skip' || decision.action === 'block') &&
+    (match?.state === 'matched' || match?.state === 'suggested')
+      ? decision.reason
+      : null
+  const resultVariant = result
+    ? result.status === 'filled' && !result.verified
+      ? 'warning'
+      : RESULT_BADGES[result.status]
+    : undefined
+  const resultKey: MessageKey | null = result
+    ? result.status === 'filled' && !result.verified
+      ? 'fill.result.unverified'
+      : `fill.result.${result.status}`
+    : null
   const details = [
     t(`fieldType.${field.type}`),
     field.options.length > 0
@@ -211,8 +324,19 @@ function FieldRow({ field, match }: { field: FieldDescriptor; match: MatchResult
       data-field-id={field.id}
       data-field-type={field.type}
       data-match-state={match?.state}
+      data-decision={decision?.action}
+      data-fill-status={result?.status}
       className="ufa:flex ufa:items-start ufa:gap-2 ufa:px-3 ufa:py-2"
     >
+      {context.selected ? (
+        <Checkbox
+          className="ufa:mt-0.5"
+          checked={isSelected}
+          disabled={!selectable}
+          aria-label={t('fill.select', { label })}
+          onCheckedChange={(checked) => context.onSelectedChange?.(field.id, checked === true)}
+        />
+      ) : null}
       <div className="ufa:min-w-0 ufa:flex-1">
         <p className="ufa:truncate ufa:text-sm" title={field.label}>
           {field.label || (
@@ -255,6 +379,50 @@ function FieldRow({ field, match }: { field: FieldDescriptor; match: MatchResult
         ) : match?.reason && stateBadge && match.state !== 'missing' ? (
           <p className="ufa:mt-1 ufa:text-xs ufa:text-muted-foreground">{match.reason}</p>
         ) : null}
+        {context.selected && options.length > 1 ? (
+          <div className="ufa:mt-1 ufa:flex ufa:flex-col ufa:gap-1">
+            <label htmlFor={choiceId} className="ufa:text-xs ufa:font-medium">
+              {t('fill.choose')}
+            </label>
+            <NativeSelect
+              id={choiceId}
+              className="ufa:h-8 ufa:text-xs"
+              value={choice ?? ''}
+              onChange={(event) => context.onChoiceChange?.(field.id, event.target.value)}
+            >
+              <option value="" disabled>
+                {t('fill.chooseHint')}
+              </option>
+              {options.map((candidate) => {
+                const value = candidate.fillValue ? describeFill(candidate.fillValue, field, t) : ''
+                const answerLabel = context.answerLabels.get(candidate.answerId)
+                return (
+                  <option key={candidate.answerId} value={candidate.answerId}>
+                    {answerLabel && answerLabel !== field.label
+                      ? `${value} (${answerLabel})`
+                      : value}
+                  </option>
+                )
+              })}
+            </NativeSelect>
+          </div>
+        ) : null}
+        {heldBack ? (
+          <p data-slot="fill-decision" className="ufa:mt-1 ufa:text-xs ufa:text-muted-foreground">
+            {heldBack}
+          </p>
+        ) : null}
+        {result?.reason ? (
+          <p
+            data-slot="fill-result"
+            className={cn(
+              'ufa:mt-1 ufa:text-xs',
+              result.status === 'failed' ? 'ufa:text-destructive' : 'ufa:text-muted-foreground',
+            )}
+          >
+            {result.reason}
+          </p>
+        ) : null}
       </div>
       <div className="ufa:flex ufa:shrink-0 ufa:flex-wrap ufa:justify-end ufa:gap-1">
         {field.sensitivity === 'prohibited' ? (
@@ -275,8 +443,10 @@ function FieldRow({ field, match }: { field: FieldDescriptor; match: MatchResult
         {field.support === 'unsupported' ? (
           <Badge variant="muted">{t('fields.unsupported')}</Badge>
         ) : null}
-        {field.hasValue ? <Badge variant="info">{t('fields.hasValue')}</Badge> : null}
-        {match && stateBadge ? (
+        {field.hasValue && !result ? <Badge variant="info">{t('fields.hasValue')}</Badge> : null}
+        {result && resultKey && resultVariant ? (
+          <Badge variant={resultVariant}>{t(resultKey)}</Badge>
+        ) : match && stateBadge ? (
           <Badge variant={stateBadge}>{t(`match.${match.state}` as MessageKey)}</Badge>
         ) : null}
       </div>

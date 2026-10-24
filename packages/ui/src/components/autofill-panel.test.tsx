@@ -1,10 +1,13 @@
-import { createAutofill, type AutofillHost } from '@ufa/autofill-sdk'
+import { createAutofill, createDomPageDriver, type AutofillHost } from '@ufa/autofill-sdk'
 import {
   AutofillError,
   type FieldDescriptor,
+  type FillOperationInput,
+  type FillResult,
   type PageDriver,
   type PageEvent,
   type PageInfo,
+  type RestoreResult,
 } from '@ufa/core'
 import { createAutofillStore, createMemoryStorage } from '@ufa/storage'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
@@ -115,6 +118,16 @@ function fakeDriver(connect: () => Promise<PageInfo>, fields: FieldDescriptor[] 
     disposed: 0,
     connect: vi.fn(connect),
     scan: vi.fn(async () => ({ page: PAGE, fields, scannedAt: 1 })),
+    fill: vi.fn(async (operations: readonly FillOperationInput[]) =>
+      operations.map((operation): FillResult => ({
+        fieldId: operation.fieldId,
+        status: 'filled',
+        reason: null,
+        verified: true,
+        snapshotId: 'snapshot-1',
+      })),
+    ),
+    restore: vi.fn(async (): Promise<RestoreResult[]> => []),
     subscribe(listener) {
       listeners.add(listener)
       return () => listeners.delete(listener)
@@ -351,6 +364,80 @@ describe('AutofillPanel', () => {
     render(<AutofillPanel host={hostFor(driver)} defaultTab="answers" />)
     expect(await screen.findByRole('tab', { name: 'Answers', selected: true })).toBeInTheDocument()
     expect(await screen.findByText('No saved answers yet')).toBeInTheDocument()
+  })
+
+  it('fills only selected fields in review mode and keeps non-empty values', async () => {
+    const FORM = `
+      <form>
+        <label for="first">First name</label><input id="first" autocomplete="given-name">
+        <label for="last">Last name</label><input id="last" value="Existing">
+        <label for="email">Email</label><input id="email" type="email">
+        <label><input type="checkbox" id="terms"> I agree to the terms</label>
+      </form>`
+    document.body.innerHTML = FORM
+    document.title = 'Apply'
+    const storage = createMemoryStorage()
+    const store = createAutofillStore({ adapter: storage })
+    await store.ready()
+    await store.answers.create({ label: 'First name', value: { kind: 'text', text: 'Ada' } })
+    await store.answers.create({
+      label: 'Email',
+      semanticKey: 'email',
+      value: { kind: 'text', text: 'ada@example.com' },
+    })
+    await store.answers.create({
+      label: 'I agree to the terms',
+      value: { kind: 'boolean', value: true },
+    })
+    const driver = createDomPageDriver({ observe: false, optionTimeoutMs: 200 })
+    const host: AutofillHost = {
+      createController: () => createAutofill({ driver, storage, store }),
+    }
+    const user = userEvent.setup()
+    render(<AutofillPanel host={host} />)
+    await screen.findByRole('region', { name: 'Detected fields' })
+
+    const list = await screen.findByRole('region', { name: 'Detected fields' })
+    const termsRow = within(list).getByText('I agree to the terms').closest('li')!
+    const termsBox = within(termsRow).getByRole('checkbox')
+    expect(termsBox).not.toBeChecked()
+    await user.click(screen.getByRole('button', { name: /Fill selected/i }))
+    await waitFor(() =>
+      expect((document.getElementById('first') as HTMLInputElement).value).toBe('Ada'),
+    )
+    expect((document.getElementById('last') as HTMLInputElement).value).toBe('Existing')
+    expect((document.getElementById('email') as HTMLInputElement).value).toBe('ada@example.com')
+    expect((document.getElementById('terms') as HTMLInputElement).checked).toBe(false)
+    expect(termsBox).not.toBeChecked()
+
+    await user.click(screen.getByRole('button', { name: 'Undo fill' }))
+    await waitFor(() => {
+      expect((document.getElementById('first') as HTMLInputElement).value).toBe('')
+      expect((document.getElementById('terms') as HTMLInputElement).checked).toBe(false)
+    })
+    store.dispose()
+  })
+
+  it('shows answers in suggest mode without a fill action', async () => {
+    document.body.innerHTML = '<form><label for="first">First name</label><input id="first"></form>'
+    const storage = createMemoryStorage()
+    const store = createAutofillStore({ adapter: storage })
+    await store.ready()
+    await store.answers.create({ label: 'First name', value: { kind: 'text', text: 'Ada' } })
+    await store.settings.update({ mode: 'suggest' })
+    const host: AutofillHost = {
+      createController: () =>
+        createAutofill({
+          driver: createDomPageDriver({ observe: false }),
+          storage,
+          store,
+        }),
+    }
+    render(<AutofillPanel host={host} />)
+    await screen.findByRole('region', { name: 'Detected fields' })
+    expect(screen.queryByRole('button', { name: /Fill selected/i })).toBeNull()
+    expect(screen.getByText('Ada')).toBeInTheDocument()
+    store.dispose()
   })
 
   it('keeps the heading for assistive technology only when embedded', async () => {

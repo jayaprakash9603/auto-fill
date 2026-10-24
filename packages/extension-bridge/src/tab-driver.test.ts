@@ -1,3 +1,5 @@
+import { createDomPageDriver, type RuntimeRequest } from '@ufa/autofill-sdk'
+import type { FieldDescriptor } from '@ufa/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createExtensionAutofillHost } from './host'
@@ -120,6 +122,130 @@ describe('extension tab driver', () => {
       { timeout: 2_000 },
     )
     document.body.innerHTML = ''
+  })
+
+  it('fills and restores through the page runtime', async () => {
+    document.body.innerHTML = '<label for="x">Email</label><input id="x" type="email" />'
+    fake = createFakeChrome()
+    const driver = createExtensionTabDriver({ chrome: fake.chrome, contentScriptFile: 'cs.js' })
+    await expect(driver.fill([])).rejects.toMatchObject({ code: 'CONTENT_UNAVAILABLE' })
+    await driver.connect()
+    const [email] = (await driver.scan()).fields
+    const input = document.getElementById('x') as HTMLInputElement
+
+    const [result] = await driver.fill([
+      { fieldId: email!.id, value: { kind: 'text', text: 'ada@example.com' }, source: 'saved' },
+    ])
+    expect(result).toMatchObject({ status: 'filled', verified: true })
+    expect(input.value).toBe('ada@example.com')
+    expect(await driver.restore(result!.snapshotId!)).toEqual([
+      { fieldId: email!.id, status: 'restored', reason: null },
+    ])
+    expect(input.value).toBe('')
+    document.body.innerHTML = ''
+  })
+
+  describe('with several frames', () => {
+    async function framedDriver(failingFrame?: number) {
+      document.body.innerHTML = '<label for="x">Email</label><input id="x" type="email" />'
+      const [template] = (await createDomPageDriver({ observe: false }).scan()).fields
+      const page = await createDomPageDriver().connect()
+      document.body.innerHTML = ''
+      const frames: Record<number, FieldDescriptor[]> = {
+        0: [{ ...template!, id: 'top-email' }],
+        2: [{ ...template!, id: 'frame-email' }],
+      }
+      const requests: { frameId: number; request: RuntimeRequest }[] = []
+      fake = createFakeChrome()
+      fake.chrome.scripting.executeScript = async () => [{ frameId: 0 }, { frameId: 2 }]
+      fake.chrome.tabs.sendMessage = async (_tabId, message, options) => {
+        const frameId = options?.frameId ?? 0
+        const request = message as RuntimeRequest
+        requests.push({ frameId, request })
+        if (request.type === 'fill' && frameId === failingFrame) throw new Error('Frame gone')
+        switch (request.type) {
+          case 'ping':
+            return { ok: true, data: page }
+          case 'scan':
+            return { ok: true, data: { page, fields: frames[frameId], scannedAt: 1 } }
+          case 'fill':
+            return {
+              ok: true,
+              data: request.operations.map((operation) => ({
+                fieldId: operation.fieldId,
+                status: 'filled',
+                reason: null,
+                verified: true,
+                snapshotId: `snap-${frameId}`,
+              })),
+            }
+          case 'restore':
+            return {
+              ok: true,
+              data: [{ fieldId: frames[frameId]?.[0]?.id, status: 'restored', reason: null }],
+            }
+        }
+      }
+      const driver = createExtensionTabDriver({ chrome: fake.chrome, contentScriptFile: 'cs.js' })
+      await driver.connect()
+      await driver.scan()
+      return { driver, requests }
+    }
+
+    const value = { kind: 'text', text: 'ada@example.com' } as const
+
+    it('sends each operation to the frame that owns the field, top frame first', async () => {
+      const { driver, requests } = await framedDriver()
+      const results = await driver.fill([
+        { fieldId: 'frame-email', value, source: 'saved' },
+        { fieldId: 'top-email', value, source: 'saved' },
+        { fieldId: 'unknown', value, source: 'saved' },
+      ])
+      expect(results.map((result) => [result.fieldId, result.status, result.reason])).toEqual([
+        ['frame-email', 'filled', null],
+        ['top-email', 'filled', null],
+        ['unknown', 'failed', 'The field is no longer on the page.'],
+      ])
+      const fills = requests.filter(({ request }) => request.type === 'fill')
+      expect(
+        fills.map(({ frameId, request }) => [
+          frameId,
+          request.type === 'fill' && request.operations.map((operation) => operation.fieldId),
+        ]),
+      ).toEqual([
+        [0, ['top-email']],
+        [2, ['frame-email']],
+      ])
+
+      const snapshotIds = new Set(results.map((result) => result.snapshotId).filter(Boolean))
+      expect(snapshotIds.size).toBe(1)
+      const [snapshotId] = snapshotIds
+      expect(await driver.restore(snapshotId!)).toEqual([
+        { fieldId: 'top-email', status: 'restored', reason: null },
+        { fieldId: 'frame-email', status: 'restored', reason: null },
+      ])
+      expect(
+        requests
+          .filter(({ request }) => request.type === 'restore')
+          .map(({ frameId, request }) => [frameId, request.type === 'restore' && request.snapshotId]),
+      ).toEqual([
+        [0, 'snap-0'],
+        [2, 'snap-2'],
+      ])
+      expect(await driver.restore(snapshotId!)).toEqual([])
+    })
+
+    it('reports the fields of a frame that fails, and still fills the others', async () => {
+      const { driver } = await framedDriver(2)
+      const results = await driver.fill([
+        { fieldId: 'top-email', value, source: 'saved' },
+        { fieldId: 'frame-email', value, source: 'saved' },
+      ])
+      expect(results.map((result) => [result.fieldId, result.status, result.reason])).toEqual([
+        ['top-email', 'filled', null],
+        ['frame-email', 'failed', 'Frame gone'],
+      ])
+    })
   })
 })
 

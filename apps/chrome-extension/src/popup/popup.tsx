@@ -10,13 +10,33 @@ import {
   useAutofillController,
   useAutofillState,
 } from '@ufa/ui'
-import { PanelRightOpenIcon, SettingsIcon } from 'lucide-react'
+import { PanelRightOpenIcon, SettingsIcon, WandSparklesIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 export function Popup({ host }: { host: ExtensionAutofillHost }) {
   const controller = useAutofillController(host)
   const state = useAutofillState(controller)
   const [windowId, setWindowId] = useState<number | null>(null)
+  const [status, setStatus] = useState<string | null>(null)
+  // Only trusted mode on a trusted site produces `fill` decisions.
+  const trustedCount = Object.values(state.decisions).filter(
+    (decision) => decision.action === 'fill',
+  ).length
+
+  const fillTrusted = async () => {
+    if (!controller) return
+    setStatus(null)
+    try {
+      const results = await controller.fill()
+      const filled = results.filter((result) => result.status === 'filled').length
+      const noun = results.length === 1 ? 'field' : 'fields'
+      setStatus(
+        `Filled ${filled} of ${results.length} trusted ${noun}. Review the form before you submit it.`,
+      )
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error))
+    }
+  }
 
   useEffect(() => {
     void chrome.windows.getCurrent().then((win) => setWindowId(win.id ?? null))
@@ -54,6 +74,23 @@ export function Popup({ host }: { host: ExtensionAutofillHost }) {
         />
       ) : state.error ? (
         <p className="ufa:text-xs ufa:text-muted-foreground">{state.error.message}</p>
+      ) : null}
+
+      {trustedCount > 0 ? (
+        <Button
+          variant="secondary"
+          onClick={() => void fillTrusted()}
+          disabled={state.filling}
+          aria-busy={state.filling || undefined}
+        >
+          {state.filling ? <Spinner /> : <WandSparklesIcon />}
+          Fill trusted fields ({trustedCount})
+        </Button>
+      ) : null}
+      {status ? (
+        <p role="status" className="ufa:text-xs ufa:text-muted-foreground">
+          {status}
+        </p>
       ) : null}
 
       <div className="ufa:flex ufa:gap-2">

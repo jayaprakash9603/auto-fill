@@ -55,19 +55,26 @@ export type FillSource = (typeof FILL_SOURCES)[number]
 
 export interface FillOperation {
   fieldId: string
+  /** The fingerprint the field was scanned with; the page refuses to fill a control that changed. */
+  fingerprint: string | null
   value: FieldValue
   allowOverwrite: boolean
   source: FillSource
   /** Required for consent controls; the user must have selected this exact field. */
   explicitlySelected: boolean
 }
-export type FillOperationInput = Omit<FillOperation, 'allowOverwrite' | 'explicitlySelected'> & {
+export type FillOperationInput = Omit<
+  FillOperation,
+  'fingerprint' | 'allowOverwrite' | 'explicitlySelected'
+> & {
+  fingerprint?: string | null | undefined
   allowOverwrite?: boolean | undefined
   explicitlySelected?: boolean | undefined
 }
 
 export const fillOperationSchema = z.object({
   fieldId: z.string().min(1).max(200),
+  fingerprint: z.string().max(200).nullable().default(null),
   value: fieldValueSchema,
   allowOverwrite: z.boolean().default(false),
   source: z.enum(FILL_SOURCES),

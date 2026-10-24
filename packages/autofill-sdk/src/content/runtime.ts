@@ -49,6 +49,10 @@ async function handleRequest(driver: DomPageDriver, request: RuntimeRequest): Pr
       return driver.connect()
     case 'scan':
       return driver.scan(request.request)
+    case 'fill':
+      return driver.fill(request.operations)
+    case 'restore':
+      return driver.restore(request.snapshotId)
   }
 }
 

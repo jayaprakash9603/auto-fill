@@ -23,6 +23,7 @@
     "@ufa/core": "workspace:*",
     "@ufa/extension-bridge": "workspace:*",
     "@ufa/field-detection": "workspace:*",
+    "@ufa/form-actions": "workspace:*",
     "@ufa/matching-engine": "workspace:*",
     "@ufa/storage": "workspace:*",
     "@ufa/ui": "workspace:*"
