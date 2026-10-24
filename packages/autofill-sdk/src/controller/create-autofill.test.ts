@@ -1,6 +1,7 @@
 import {
   PLUGIN_API_VERSION,
   PluginRegistry,
+  SYNTHETIC_CATEGORIES,
   type AutofillEvent,
   type FieldDescriptor,
   type PageDriver,
@@ -171,6 +172,53 @@ describe('controller matching', () => {
       state: 'suggested',
       best: { strategyId: 'test.colour', explanation: 'Chosen by a host plugin' },
     })
+    await controller.destroy()
+  })
+
+  it('generates in-memory previews when synthetic data is enabled', async () => {
+    const { controller, byLabel } = await connected()
+    await controller.store.settings.update({
+      synthetic: { enabled: true, allowedCategories: [...SYNTHETIC_CATEGORIES] },
+    })
+    const colour = byLabel('Favourite colour').field
+    const results = await controller.generate({ fieldIds: [colour.id] })
+    expect(results.length).toBe(1)
+    expect(results[0]).toMatchObject({
+      fieldId: colour.id,
+      source: 'generated',
+      valid: true,
+    })
+    expect(controller.getState().generated[colour.id]?.value).toEqual(results[0]?.value)
+    await controller.destroy()
+  })
+
+  it('clears selected fields through the driver', async () => {
+    renderForm()
+    const driver = createDomPageDriver({ observe: false })
+    const clear = vi.fn(driver.clear)
+    driver.clear = clear
+    const controller = createAutofill({ driver, storage: createMemoryStorage() })
+    await controller.connect()
+    const contact = controller.getState().fields.find((field) => field.label === 'Contact')
+    expect(contact).toBeTruthy()
+    const input = document.querySelector<HTMLInputElement>('#contact')
+    input!.value = 'typed@example.com'
+    await controller.scan()
+    const field = controller.getState().fields.find((entry) => entry.id === contact!.id)
+    expect(field?.hasValue).toBe(true)
+    clear.mockImplementation(async () => [
+      {
+        fieldId: contact!.id,
+        status: 'cleared',
+        reason: null,
+        verified: true,
+        snapshotId: 'snap-clear',
+      },
+    ])
+    const results = await controller.clear({ fieldIds: [contact!.id] })
+    expect(clear).toHaveBeenCalled()
+    expect(results[0]).toMatchObject({ status: 'cleared' })
+    expect(controller.getState().canUndo).toBe(true)
     await controller.destroy()
   })
 

@@ -1,4 +1,4 @@
-import { AUTOFILL_MODES, type AutofillSettingsInput } from '@ufa/core'
+import { AUTOFILL_MODES, SYNTHETIC_CATEGORIES, type AutofillSettingsInput } from '@ufa/core'
 import type { AutofillStore } from '@ufa/storage'
 import { PlusIcon, XIcon } from 'lucide-react'
 import { useId, useState, type FormEvent } from 'react'
@@ -106,6 +106,28 @@ export function FillSettings({ store, currentSite, className }: FillSettingsProp
         <div className="ufa:flex ufa:flex-col ufa:gap-0.5">
           <Label htmlFor={`${ids.hint}-learning`}>{t('settings.learning')}</Label>
           <p className="ufa:text-xs ufa:text-muted-foreground">{t('settings.learningHint')}</p>
+        </div>
+      </div>
+
+      <div className="ufa:flex ufa:items-start ufa:gap-3">
+        <Switch
+          id={`${ids.hint}-synthetic`}
+          checked={settings.synthetic.enabled}
+          aria-label={t('settings.synthetic')}
+          onCheckedChange={(checked) =>
+            update({
+              synthetic: {
+                enabled: checked,
+                ...(checked && settings.synthetic.allowedCategories.length === 0
+                  ? { allowedCategories: [...SYNTHETIC_CATEGORIES] }
+                  : {}),
+              },
+            })
+          }
+        />
+        <div className="ufa:flex ufa:flex-col ufa:gap-0.5">
+          <Label htmlFor={`${ids.hint}-synthetic`}>{t('settings.synthetic')}</Label>
+          <p className="ufa:text-xs ufa:text-muted-foreground">{t('settings.syntheticHint')}</p>
         </div>
       </div>
 

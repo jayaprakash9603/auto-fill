@@ -129,6 +129,7 @@ function fakeDriver(connect: () => Promise<PageInfo>, fields: FieldDescriptor[] 
     ),
     restore: vi.fn(async (): Promise<RestoreResult[]> => []),
     setLearningArmed: vi.fn(async () => undefined),
+    clear: vi.fn(async () => []),
     subscribe(listener) {
       listeners.add(listener)
       return () => listeners.delete(listener)

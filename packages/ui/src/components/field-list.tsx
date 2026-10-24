@@ -3,7 +3,9 @@ import {
   type AnswerRecord,
   type FieldDescriptor,
   type FieldValue,
+  type ClearResult,
   type FillResult,
+  type SyntheticGenerationResult,
   type LabelSource,
   type MatchCandidate,
   type MatchResult,
@@ -33,6 +35,13 @@ const REVIEW_STATES: ReadonlySet<MatchState> = new Set(['suggested', 'ambiguous'
 
 const RESULT_BADGES: Record<FillResult['status'], BadgeProps['variant']> = {
   filled: 'success',
+  unchanged: 'muted',
+  skipped: 'muted',
+  failed: 'destructive',
+}
+
+const CLEAR_RESULT_BADGES: Record<ClearResult['status'], BadgeProps['variant']> = {
+  cleared: 'success',
   unchanged: 'muted',
   skipped: 'muted',
   failed: 'destructive',
@@ -117,6 +126,10 @@ export interface FieldListProps {
   decisions?: Readonly<Record<string, PolicyDecision>>
   /** Outcome of the latest fill for each field it touched, by field id. */
   results?: Readonly<Record<string, FillResult>>
+  /** In-memory generated previews, never persisted. */
+  generated?: Readonly<Record<string, SyntheticGenerationResult>>
+  /** Outcome of the latest clear for each field it touched, by field id. */
+  clearResults?: Readonly<Record<string, ClearResult>>
   /** Fields selected for filling. Omit to show the list without selection controls. */
   selected?: ReadonlySet<string>
   onSelectedChange?: (fieldId: string, selected: boolean) => void
@@ -132,6 +145,8 @@ export interface FieldListProps {
 const NO_MATCHES: Readonly<Record<string, MatchResult>> = {}
 const NO_DECISIONS: Readonly<Record<string, PolicyDecision>> = {}
 const NO_RESULTS: Readonly<Record<string, FillResult>> = {}
+const NO_GENERATED: Readonly<Record<string, SyntheticGenerationResult>> = {}
+const NO_CLEAR_RESULTS: Readonly<Record<string, ClearResult>> = {}
 const NO_CHOICES: Readonly<Record<string, string>> = {}
 const NO_ANSWERS: readonly AnswerRecord[] = []
 
@@ -140,6 +155,8 @@ interface RowContext {
   matches: Readonly<Record<string, MatchResult>>
   decisions: Readonly<Record<string, PolicyDecision>>
   results: Readonly<Record<string, FillResult>>
+  generated: Readonly<Record<string, SyntheticGenerationResult>>
+  clearResults: Readonly<Record<string, ClearResult>>
   selected: ReadonlySet<string> | undefined
   onSelectedChange: ((fieldId: string, selected: boolean) => void) | undefined
   choices: Readonly<Record<string, string>>
@@ -169,6 +186,8 @@ export function FieldList({
   matches = NO_MATCHES,
   decisions = NO_DECISIONS,
   results = NO_RESULTS,
+  generated = NO_GENERATED,
+  clearResults = NO_CLEAR_RESULTS,
   selected,
   onSelectedChange,
   choices = NO_CHOICES,
@@ -189,6 +208,8 @@ export function FieldList({
     matches,
     decisions,
     results,
+    generated,
+    clearResults,
     selected,
     onSelectedChange,
     choices,
@@ -281,34 +302,48 @@ function FieldRow({ field, context }: { field: FieldDescriptor; context: RowCont
   const match = context.matches[field.id]
   const decision = context.decisions[field.id]
   const result = context.results[field.id]
+  const generated = context.generated[field.id]
+  const clearResult = context.clearResults[field.id]
   const choice = context.choices[field.id]
   const options = choosable(match)
   const inferred = INFERRED_SOURCES[field.labelSource]
   const stateBadge = match ? STATE_BADGES[match.state] : undefined
   const chosen = choice ? options.find((candidate) => candidate.answerId === choice) : undefined
   const best = chosen ?? match?.best ?? null
-  const proposed = best?.fillValue ? describeFill(best.fillValue, field, t) : null
+  const generatedText = generated
+    ? describeFill(generated.value, field, t)
+    : null
+  const proposed = generatedText ?? (best?.fillValue ? describeFill(best.fillValue, field, t) : null)
   const selectable = canSelectField(match, decision, chosen !== undefined)
   const isSelected = selectable && !!context.selected?.has(field.id)
   const label = field.label || t('fields.unlabeled')
   /** A usable answer the policies hold back, e.g. because the field already has a value. */
   const heldBack =
     !result &&
+    !clearResult &&
     decision &&
     (decision.action === 'skip' || decision.action === 'block') &&
     (match?.state === 'matched' || match?.state === 'suggested')
       ? decision.reason
       : null
-  const resultVariant = result
-    ? result.status === 'filled' && !result.verified
+  const resultVariant = clearResult
+    ? clearResult.status === 'cleared' && !clearResult.verified
       ? 'warning'
-      : RESULT_BADGES[result.status]
-    : undefined
-  const resultKey: MessageKey | null = result
-    ? result.status === 'filled' && !result.verified
-      ? 'fill.result.unverified'
-      : `fill.result.${result.status}`
-    : null
+      : CLEAR_RESULT_BADGES[clearResult.status]
+    : result
+      ? result.status === 'filled' && !result.verified
+        ? 'warning'
+        : RESULT_BADGES[result.status]
+      : undefined
+  const resultKey: MessageKey | null = clearResult
+    ? clearResult.status === 'cleared' && !clearResult.verified
+      ? 'clear.result.unverified'
+      : `clear.result.${clearResult.status}`
+    : result
+      ? result.status === 'filled' && !result.verified
+        ? 'fill.result.unverified'
+        : `fill.result.${result.status}`
+      : null
   const details = [
     t(`fieldType.${field.type}`),
     field.options.length > 0
@@ -363,18 +398,30 @@ function FieldRow({ field, context }: { field: FieldDescriptor; context: RowCont
         {field.unsupportedReason ? (
           <p className="ufa:text-xs ufa:text-muted-foreground">{field.unsupportedReason}</p>
         ) : null}
-        {best && proposed !== null ? (
+        {proposed !== null ? (
           <div data-slot="match-proposal" className="ufa:mt-1 ufa:flex ufa:flex-col ufa:gap-0.5">
             <p className="ufa:flex ufa:min-w-0 ufa:items-baseline ufa:gap-1 ufa:text-xs">
-              <span className="ufa:sr-only">{`${t('match.proposed')}: `}</span>
+              <span className="ufa:sr-only">
+                {`${generated ? t('match.generated') : t('match.proposed')}: `}
+              </span>
               <span className="ufa:truncate ufa:font-medium" title={proposed}>
                 {proposed}
               </span>
-              <span className="ufa:shrink-0 ufa:text-muted-foreground">
-                {`· ${t(`match.level.${best.confidence.level}`)}`}
-              </span>
+              {generated ? (
+                <span className="ufa:shrink-0 ufa:text-muted-foreground">· {t('match.generated')}</span>
+              ) : best ? (
+                <span className="ufa:shrink-0 ufa:text-muted-foreground">
+                  {`· ${t(`match.level.${best.confidence.level}`)}`}
+                </span>
+              ) : null}
             </p>
-            <p className="ufa:text-xs ufa:text-muted-foreground">{best.explanation}</p>
+            {generated && !generated.valid ? (
+              <p className="ufa:text-xs ufa:text-destructive">
+                {generated.validationMessage ?? t('match.generatedInvalid')}
+              </p>
+            ) : best ? (
+              <p className="ufa:text-xs ufa:text-muted-foreground">{best.explanation}</p>
+            ) : null}
           </div>
         ) : match?.reason && stateBadge && match.state !== 'missing' ? (
           <p className="ufa:mt-1 ufa:text-xs ufa:text-muted-foreground">{match.reason}</p>
@@ -444,7 +491,10 @@ function FieldRow({ field, context }: { field: FieldDescriptor; context: RowCont
           <Badge variant="muted">{t('fields.unsupported')}</Badge>
         ) : null}
         {field.hasValue && !result ? <Badge variant="info">{t('fields.hasValue')}</Badge> : null}
-        {result && resultKey && resultVariant ? (
+        {generated && !clearResult && !result ? (
+          <Badge variant="outline">{t('match.generated')}</Badge>
+        ) : null}
+        {(clearResult || result) && resultKey && resultVariant ? (
           <Badge variant={resultVariant}>{t(resultKey)}</Badge>
         ) : match && stateBadge ? (
           <Badge variant={stateBadge}>{t(`match.${match.state}` as MessageKey)}</Badge>

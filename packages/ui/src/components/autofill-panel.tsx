@@ -18,6 +18,7 @@ import { ProfileManager } from './data/profile-manager'
 import { ProfileSelector } from './data/profile-selector'
 import { canSelectField, FieldList, isPreselected } from './field-list'
 import { FillBar } from './fill-bar'
+import { ClearConfirmationDialog } from './clear-confirmation-dialog'
 import { LearningConfirmationDialog } from './learning-confirmation-dialog'
 import { ConnectionBadge, PortalStatus } from './portal-status'
 import { EmptyState, ErrorState, PermissionNotice, RestrictedPageState } from './states'
@@ -282,6 +283,7 @@ function PageFields({
   const [message, setMessage] = useState<string | null>(null)
   const [learningId, setLearningId] = useState<string | null>(null)
   const [learningBusy, setLearningBusy] = useState(false)
+  const [clearOpen, setClearOpen] = useState(false)
   const candidates = Object.values(state.learningCandidates)
   const activeCandidate = learningId ? state.learningCandidates[learningId] ?? null : null
 
@@ -328,6 +330,31 @@ function PageFields({
       setMessage(toAutofillError(error).message)
     }
   }, [controller, selected, choices])
+
+  const runGenerate = useCallback(async () => {
+    setMessage(null)
+    try {
+      const results = await controller.generate({ fieldIds: [...selected] })
+      setMessage(t('fill.generated', { count: results.length }))
+    } catch (error) {
+      setMessage(toAutofillError(error).message)
+    }
+  }, [controller, selected, t])
+
+  const runClear = useCallback(async () => {
+    setMessage(null)
+    setClearOpen(false)
+    try {
+      const results = await controller.clear({ fieldIds: [...selected] })
+      const cleared = results.filter((entry) => entry.status === 'cleared').length
+      const failed = results.filter((entry) => entry.status === 'failed').length
+      const skipped = results.filter((entry) => entry.status === 'skipped').length
+      setMessage(t('clear.summary', { cleared, failed, skipped }))
+      setLastResults(null)
+    } catch (error) {
+      setMessage(toAutofillError(error).message)
+    }
+  }, [controller, selected, t])
 
   const undo = useCallback(async () => {
     setMessage(null)
@@ -390,6 +417,9 @@ function PageFields({
           filling={state.filling}
           canUndo={state.canUndo}
           onUndo={() => void undo()}
+          syntheticEnabled={snapshot.settings.synthetic.enabled}
+          onGenerate={() => void runGenerate()}
+          onClear={() => setClearOpen(true)}
           lastResults={lastResults}
           message={message}
         />
@@ -404,6 +434,15 @@ function PageFields({
         onChoiceChange={choose}
         answers={snapshot.answers}
         scanning={state.scanning}
+        generated={state.generated}
+        clearResults={state.clearResults}
+      />
+      <ClearConfirmationDialog
+        open={clearOpen}
+        fieldCount={selected.size}
+        onOpenChange={setClearOpen}
+        onConfirm={() => void runClear()}
+        busy={state.filling}
       />
       <LearningConfirmationDialog
         candidate={activeCandidate}

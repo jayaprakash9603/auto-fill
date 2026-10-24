@@ -9,8 +9,11 @@ import {
   type FillResult,
   type MatchResult,
   type PageInfo,
+  type ClearOperationInput,
+  type ClearResult,
   type PolicyDecision,
   type RestoreResult,
+  type SyntheticGenerationResult,
 } from '@ufa/core'
 import {
   buildLearningCandidate,
@@ -31,11 +34,15 @@ import { createAutofillStore, type StoreSnapshot } from '@ufa/storage'
 import { createStore } from './store'
 import type { AnswerDraft } from '@ufa/storage'
 
+import { BUILTIN_GENERATORS, generateForField } from '@ufa/synthetic-data'
+
 import type {
   AutofillConfiguration,
   AutofillController,
   AutofillState,
+  ClearRequest,
   FillRequest,
+  GenerateRequest,
 } from './types'
 
 const INITIAL_STATE: AutofillState = {
@@ -52,6 +59,8 @@ const INITIAL_STATE: AutofillState = {
   scannedAt: null,
   learningArmed: false,
   learningCandidates: {},
+  generated: {},
+  clearResults: {},
 }
 
 /** State of a page the controller no longer knows anything about. */
@@ -63,7 +72,17 @@ const NO_PAGE_DATA = {
   canUndo: false,
   learningArmed: false,
   learningCandidates: {},
+  generated: {},
+  clearResults: {},
 } satisfies Partial<AutofillState>
+
+const emptyMatch = (fieldId: string): MatchResult => ({
+  fieldId,
+  state: 'missing',
+  best: null,
+  candidates: [],
+  reason: null,
+})
 
 function compareFields(a: FieldDescriptor, b: FieldDescriptor): number {
   return (a.frameId ?? 0) - (b.frameId ?? 0) || a.order - b.order
@@ -80,6 +99,10 @@ const matchInputs = (snapshot: StoreSnapshot) => [
 ]
 
 function skippedResult(fieldId: string, reason: string): FillResult {
+  return { fieldId, status: 'skipped', reason, verified: false, snapshotId: null }
+}
+
+function skippedClear(fieldId: string, reason: string): ClearResult {
   return { fieldId, status: 'skipped', reason, verified: false, snapshotId: null }
 }
 
@@ -130,9 +153,10 @@ export function createAutofill(config: AutofillConfiguration): AutofillControlle
     match: MatchResult,
     settings: AutofillSettings,
     site: string,
+    generated: SyntheticGenerationResult | null = null,
   ): PolicyDecision =>
     evaluatePolicies(
-      { field, match, generated: null, settings, site },
+      { field, match, generated, settings, site },
       { policies: config.registry?.list('policy') ?? [], onPluginError },
     )
 
@@ -171,10 +195,17 @@ export function createAutofill(config: AutofillConfiguration): AutofillControlle
       },
     )
     const matches = Object.fromEntries(results.map((result) => [result.fieldId, result]))
+    const generated = store.getState().generated
     const decisions: Record<string, PolicyDecision> = {}
     for (const field of classified) {
-      const match = matches[field.id]
-      if (match) decisions[field.id] = decide(field, match, snapshot.settings, site)
+      const match = matches[field.id] ?? emptyMatch(field.id)
+      decisions[field.id] = decide(
+        field,
+        match,
+        snapshot.settings,
+        site,
+        generated[field.id] ?? null,
+      )
     }
     return { fields: classified, matches, decisions }
   }
@@ -202,7 +233,12 @@ export function createAutofill(config: AutofillConfiguration): AutofillControlle
   const forgetPage = () => {
     detected = []
     undoSnapshotId = null
-    store.setState({ learningArmed: false, learningCandidates: {} })
+    store.setState({
+      learningArmed: false,
+      learningCandidates: {},
+      generated: {},
+      clearResults: {},
+    })
   }
 
   const fail = (error: unknown, operation: string) => {
@@ -321,6 +357,27 @@ export function createAutofill(config: AutofillConfiguration): AutofillControlle
       known.add(field.id)
       const isSelected = selected?.has(field.id) ?? false
       if (selected && !isSelected) continue
+      const generated = state.generated[field.id]
+      if (generated) {
+        const match = state.matches[field.id] ?? emptyMatch(field.id)
+        const decision = decide(field, match, settings, site, generated)
+        const allowed = isSelected
+          ? decision.action === 'fill' || decision.action === 'confirm'
+          : decision.action === 'fill'
+        if (allowed) {
+          operations.push({
+            fieldId: field.id,
+            fingerprint: field.fingerprint,
+            value: generated.value,
+            allowOverwrite: settings.overwriteExisting,
+            source: 'generated',
+            explicitlySelected: isSelected,
+          })
+          continue
+        }
+        if (isSelected) refused.push(skippedResult(field.id, decision.reason))
+        continue
+      }
       const match = state.matches[field.id]
       if (!match) {
         if (isSelected) refused.push(skippedResult(field.id, 'There is no answer to fill.'))
@@ -340,7 +397,7 @@ export function createAutofill(config: AutofillConfiguration): AutofillControlle
         // The user's own pick: confirmable, but never filled without selection.
         effective = { ...match, state: 'suggested', best: candidate, reason: null }
       }
-      const decision = decide(field, effective, settings, site)
+      const decision = decide(field, effective, settings, site, null)
       const allowed = isSelected
         ? decision.action === 'fill' || decision.action === 'confirm'
         : decision.action === 'fill'
@@ -365,6 +422,118 @@ export function createAutofill(config: AutofillConfiguration): AutofillControlle
     }
     return { operations, refused, answerIds }
   }
+
+  const planClear = (request: ClearRequest) => {
+    const state = store.getState()
+    const { settings } = data.getSnapshot()
+    const selected = request.fieldIds ? new Set(request.fieldIds) : null
+    const operations: ClearOperationInput[] = []
+    const refused: ClearResult[] = []
+    const known = new Set<string>()
+    for (const field of state.fields) {
+      known.add(field.id)
+      const isSelected = selected?.has(field.id) ?? false
+      if (selected && !isSelected) continue
+      if (!field.hasValue) {
+        if (isSelected) refused.push(skippedClear(field.id, 'The field is already empty.'))
+        continue
+      }
+      if (field.sensitivity === 'prohibited' || field.support === 'unsupported') {
+        if (isSelected) refused.push(skippedClear(field.id, 'This field cannot be cleared.'))
+        continue
+      }
+      if (field.sensitivity === 'consent' && !isSelected) continue
+      if (field.type === 'select' && !settings.clear.includeSelects) {
+        if (isSelected) refused.push(skippedClear(field.id, 'Select fields are not cleared.'))
+        continue
+      }
+      if (
+        (field.type === 'radio-group' ||
+          field.type === 'checkbox-group' ||
+          field.type === 'checkbox') &&
+        !settings.clear.includeChoiceControls
+      ) {
+        if (isSelected)
+          refused.push(skippedClear(field.id, 'Choice controls are not cleared.'))
+        continue
+      }
+      if (!selected && field.sensitivity === 'consent') continue
+      operations.push({
+        fieldId: field.id,
+        explicitlySelected: isSelected,
+        requireRestorable: true,
+      })
+    }
+    for (const fieldId of request.fieldIds ?? []) {
+      if (!known.has(fieldId))
+        refused.push(skippedClear(fieldId, 'The field is no longer on the page.'))
+    }
+    return { operations, refused }
+  }
+
+  const generate = (request: GenerateRequest = {}): Promise<SyntheticGenerationResult[]> =>
+    enqueue(async () => {
+      requireReady()
+      const { settings } = data.getSnapshot()
+      if (!settings.synthetic.enabled) return []
+      const selected = request.fieldIds ? new Set(request.fieldIds) : null
+      const generators = [
+        ...BUILTIN_GENERATORS,
+        ...(config.registry?.list('generator') ?? []),
+      ]
+      const results: SyntheticGenerationResult[] = []
+      const generated: Record<string, SyntheticGenerationResult> = { ...store.getState().generated }
+      for (const field of store.getState().fields) {
+        if (selected && !selected.has(field.id)) continue
+        const result = generateForField(field, settings, { generators, now })
+        if (!result) continue
+        results.push(result)
+        generated[field.id] = result
+      }
+      publish(detected, { generated })
+      events.emit({
+        type: 'generate:complete',
+        results: results.map((entry) => ({
+          fieldId: entry.fieldId,
+          generatorId: entry.generatorId,
+          valid: entry.valid,
+        })),
+      })
+      return results
+    })
+
+  const clear = (request: ClearRequest = {}): Promise<ClearResult[]> =>
+    enqueue(async () => {
+      requireReady()
+      const { operations, refused } = planClear(request)
+      store.setState({ filling: true })
+      let cleared: ClearResult[]
+      try {
+        cleared = operations.length > 0 ? await config.driver.clear(operations) : []
+      } catch (error) {
+        const failure = toAutofillError(error)
+        if (!destroyed) {
+          store.setState({ filling: false })
+          events.emit({ type: 'error', code: failure.code, message: failure.message })
+        }
+        throw failure
+      }
+      if (destroyed) return []
+      const order = new Map(store.getState().fields.map((field, index) => [field.id, index]))
+      const results = [...cleared, ...refused].sort(
+        (a, b) => (order.get(a.fieldId) ?? Infinity) - (order.get(b.fieldId) ?? Infinity),
+      )
+      const snapshotId = cleared.find((result) => result.snapshotId)?.snapshotId ?? null
+      if (snapshotId) undoSnapshotId = snapshotId
+      store.setState({
+        filling: false,
+        canUndo: undoSnapshotId !== null,
+        clearResults: Object.fromEntries(results.map((result) => [result.fieldId, result])),
+      })
+      events.emit({ type: 'clear:complete', results })
+      if (cleared.some((result) => result.status === 'cleared')) await runScan()
+      return results
+    })
 
   const fill = (request: FillRequest = {}): Promise<FillResult[]> =>
     enqueue(async () => {
@@ -542,6 +711,8 @@ export function createAutofill(config: AutofillConfiguration): AutofillControlle
     connect,
     scan,
     fill,
+    generate,
+    clear,
     undo,
     setLearningArmed,
     confirmLearning,

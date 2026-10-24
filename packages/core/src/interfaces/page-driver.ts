@@ -1,11 +1,12 @@
 import type {
+  ClearOperationInput,
   FillOperationInput,
   PageEvent,
   PageInfo,
   ScanRequestInput,
   ScanResult,
 } from '../domain/page'
-import type { FillResult, RestoreResult } from '../domain/results'
+import type { ClearResult, FillResult, RestoreResult } from '../domain/results'
 
 /**
  * The only way the engine touches a page. The DOM driver runs where the document lives (content
@@ -27,6 +28,8 @@ export interface PageDriver {
    * fields share a snapshot id that `restore` accepts.
    */
   fill(operations: readonly FillOperationInput[], signal?: AbortSignal): Promise<FillResult[]>
+  /** Clears eligible fields to empty values and records undo snapshots. */
+  clear(operations: readonly ClearOperationInput[], signal?: AbortSignal): Promise<ClearResult[]>
   /** Puts back the values a fill replaced, unless the user changed the field since. */
   restore(snapshotId: string, signal?: AbortSignal): Promise<RestoreResult[]>
   /** When armed, user edits on unmatched fields emit `field-input` events. */

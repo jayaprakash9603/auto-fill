@@ -1,4 +1,5 @@
 import {
+  clearOperationSchema,
   fieldValuesEqual,
   fillOperationSchema,
   isFieldValueEmpty,
@@ -9,10 +10,14 @@ import {
   type FieldValue,
   type FillOperation,
   type FillOperationInput,
+  type ClearOperation,
+  type ClearOperationInput,
+  type ClearResult,
   type FillResult,
   type RestoreResult,
 } from '@ufa/core'
 
+import { clearRefusalReason, emptyValueFor } from './clear'
 import { DEFAULT_OPTION_TIMEOUT_MS, fillControl, type ControlFillOptions } from './controls'
 import { readControlValue, valueMatches } from './read'
 
@@ -31,6 +36,7 @@ export interface FormActionsOptions {
 
 export interface FormActions {
   fill(operations: readonly FillOperationInput[], signal?: AbortSignal): Promise<FillResult[]>
+  clear(operations: readonly ClearOperationInput[], signal?: AbortSignal): Promise<ClearResult[]>
   restore(snapshotId: string, signal?: AbortSignal): Promise<RestoreResult[]>
 }
 
@@ -123,6 +129,50 @@ export function createFormActions(options: FormActionsOptions): FormActions {
     }
   }
 
+  const clearOne = async (
+    operation: ClearOperation,
+    snapshotId: string,
+    entries: SnapshotEntry[],
+  ): Promise<ClearResult> => {
+    const result = (
+      status: ClearResult['status'],
+      reason: string | null,
+      verified = false,
+    ): ClearResult => ({
+      fieldId: operation.fieldId,
+      status,
+      reason,
+      verified,
+      snapshotId: null,
+    })
+    let target: ControlTarget
+    try {
+      target = options.resolve(operation.fieldId)
+    } catch (error) {
+      return result('failed', toAutofillError(error).message)
+    }
+    const { field } = target
+    const refusal = clearRefusalReason(field, operation)
+    if (refusal) return result('skipped', refusal)
+    const empty = emptyValueFor(field)
+    if (!empty) return result('skipped', 'This control cannot be cleared.')
+    const previous = readControlValue(target)
+    if (isFieldValueEmpty(previous)) return result('unchanged', 'Already empty.', true)
+    if (operation.requireRestorable && previous === null)
+      return result('skipped', 'The earlier value could not be read for undo.')
+    const outcome = await write(target, empty)
+    const cleared = readControlValue(target)
+    const changed = !fieldValuesEqual(previous, cleared)
+    if (changed) entries.push({ fieldId: field.id, fingerprint: field.fingerprint, previous, filled: cleared })
+    return {
+      fieldId: operation.fieldId,
+      status: outcome.ok ? 'cleared' : 'failed',
+      reason: outcome.reason,
+      verified: outcome.ok && outcome.verified,
+      snapshotId: changed ? snapshotId : null,
+    }
+  }
+
   const restoreOne = async (entry: SnapshotEntry): Promise<RestoreResult> => {
     const result = (status: RestoreResult['status'], reason: string | null): RestoreResult => ({
       fieldId: entry.fieldId,
@@ -164,6 +214,34 @@ export function createFormActions(options: FormActionsOptions): FormActions {
           continue
         }
         results.push(await fillOne(operation, snapshotId, entries))
+      }
+      if (entries.length > 0) {
+        snapshots.set(snapshotId, entries)
+        for (const id of snapshots.keys()) {
+          if (snapshots.size <= maxSnapshots) break
+          snapshots.delete(id)
+        }
+      }
+      return results
+    },
+    async clear(operations, signal) {
+      snapshotCounter += 1
+      const snapshotId = `c${Date.now().toString(36)}${snapshotCounter}`
+      const entries: SnapshotEntry[] = []
+      const results: ClearResult[] = []
+      for (const raw of operations) {
+        const operation = clearOperationSchema.parse(raw)
+        if (signal?.aborted) {
+          results.push({
+            fieldId: operation.fieldId,
+            status: 'skipped',
+            reason: 'The clear was cancelled.',
+            verified: false,
+            snapshotId: null,
+          })
+          continue
+        }
+        results.push(await clearOne(operation, snapshotId, entries))
       }
       if (entries.length > 0) {
         snapshots.set(snapshotId, entries)

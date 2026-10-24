@@ -51,6 +51,8 @@ async function handleRequest(driver: DomPageDriver, request: RuntimeRequest): Pr
       return driver.scan(request.request)
     case 'fill':
       return driver.fill(request.operations)
+    case 'clear':
+      return driver.clear(request.operations)
     case 'restore':
       return driver.restore(request.snapshotId)
     case 'set-learning':

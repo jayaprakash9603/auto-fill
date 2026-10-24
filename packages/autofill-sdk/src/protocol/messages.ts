@@ -1,6 +1,8 @@
 import {
   AUTOFILL_ERROR_CODES,
   AutofillError,
+  clearOperationSchema,
+  clearResultSchema,
   fillOperationSchema,
   fillResultSchema,
   pageEventSchema,
@@ -9,6 +11,8 @@ import {
   scanRequestSchema,
   scanResultSchema,
   type AutofillErrorCode,
+  type ClearOperation,
+  type ClearResult,
   type FillOperation,
   type FillResult,
   type PageEvent,
@@ -48,6 +52,13 @@ export interface RestoreRequestMessage {
   type: 'restore'
   snapshotId: string
 }
+export interface ClearRequestMessage {
+  channel: typeof PROTOCOL_CHANNEL
+  kind: 'request'
+  requestId: string
+  type: 'clear'
+  operations: ClearOperation[]
+}
 export interface SetLearningRequestMessage {
   channel: typeof PROTOCOL_CHANNEL
   kind: 'request'
@@ -60,6 +71,7 @@ export type RuntimeRequest =
   | ScanRequestMessage
   | FillRequestMessage
   | RestoreRequestMessage
+  | ClearRequestMessage
   | SetLearningRequestMessage
 export type RuntimeRequestType = RuntimeRequest['type']
 
@@ -67,6 +79,7 @@ export interface RuntimeResponseDataMap {
   ping: PageInfo
   scan: ScanResult
   fill: FillResult[]
+  clear: ClearResult[]
   restore: RestoreResult[]
   'set-learning': null
 }
@@ -102,6 +115,11 @@ export const runtimeRequestSchema = z.discriminatedUnion('type', [
     operations: z.array(fillOperationSchema).max(MAX_OPERATIONS),
   }),
   z.object({ ...requestBase, type: z.literal('restore'), snapshotId: z.string().min(1).max(100) }),
+  z.object({
+    ...requestBase,
+    type: z.literal('clear'),
+    operations: z.array(clearOperationSchema).max(MAX_OPERATIONS),
+  }),
   z.object({ ...requestBase, type: z.literal('set-learning'), armed: z.boolean() }),
 ])
 
@@ -110,6 +128,7 @@ export const runtimeResponseDataSchemas = {
   ping: pageInfoSchema,
   scan: scanResultSchema,
   fill: z.array(fillResultSchema).max(MAX_OPERATIONS),
+  clear: z.array(clearResultSchema).max(MAX_OPERATIONS),
   restore: z.array(restoreResultSchema).max(MAX_OPERATIONS),
   'set-learning': z.null(),
 } satisfies { [K in RuntimeRequestType]: z.ZodType<RuntimeResponseDataMap[K]> }

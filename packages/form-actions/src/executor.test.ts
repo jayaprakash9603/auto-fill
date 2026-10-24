@@ -1,5 +1,6 @@
 import {
   AutofillError,
+  type ClearOperationInput,
   type ControlTarget,
   type FieldDescriptor,
   type FillOperationInput,
@@ -43,6 +44,9 @@ function setup(fields: Record<string, { selector: string; field?: Partial<FieldD
 
 const op = (fieldId: string, value: FillOperationInput['value'], extra: Partial<FillOperationInput> = {}) =>
   ({ fieldId, value, source: 'saved', ...extra }) satisfies FillOperationInput
+
+const clearOp = (fieldId: string, extra: Partial<ClearOperationInput> = {}) =>
+  ({ fieldId, explicitlySelected: true, ...extra }) satisfies ClearOperationInput
 
 describe('createFormActions().fill', () => {
   it('fills eligible fields and refuses everything the safety rules forbid', async () => {
@@ -172,6 +176,31 @@ describe('createFormActions().restore', () => {
     expect($<HTMLInputElement>('#other').value).toBe('Typed by the user')
 
     expect(await actions.restore(snapshotId ?? '')).toEqual([])
+  })
+
+  it('clears eligible fields and restores them with the same snapshot id', async () => {
+    const { actions } = setup({
+      first: {
+        selector: '#first',
+        field: { hasValue: true, currentValue: { kind: 'text', text: 'Ada' } },
+      },
+      last: {
+        selector: '#last',
+        field: { hasValue: true, currentValue: { kind: 'text', text: 'Lovelace' } },
+      },
+      terms: { selector: '#terms', field: { sensitivity: 'consent' } },
+    })
+    $<HTMLInputElement>('#first').value = 'Ada'
+    const results = await actions.clear([clearOp('first'), clearOp('last')])
+    expect(results.map((result) => result.status)).toEqual(['cleared', 'cleared'])
+    const snapshotId = results[0]?.snapshotId
+    expect(snapshotId).toBeTruthy()
+    expect($<HTMLInputElement>('#first').value).toBe('')
+    expect($<HTMLInputElement>('#last').value).toBe('')
+    expect(await actions.restore(snapshotId ?? '')).toEqual([
+      { fieldId: 'first', status: 'restored', reason: null },
+      { fieldId: 'last', status: 'restored', reason: null },
+    ])
   })
 
   it('keeps only the newest snapshots', async () => {

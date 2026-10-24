@@ -14,7 +14,7 @@ export interface LearningWatcher {
 
 export function createLearningWatcher(options: {
   document: Document
-  scanner: FieldScanner
+  getScanner: () => FieldScanner
   onInput(field: FieldDescriptor, value: FieldValue): void
   debounceMs?: number
 }): LearningWatcher {
@@ -30,7 +30,7 @@ export function createLearningWatcher(options: {
     pending = null
     if (!armed || !element || Date.now() < ignoreUntil) return
     if (isInIgnoredRegion(element)) return
-    const target = options.scanner.findForElement(element)
+    const target = options.getScanner().findForElement(element)
     if (!target) return
     const value = readControlValue(target)
     if (!value) return

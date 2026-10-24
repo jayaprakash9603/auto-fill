@@ -21,12 +21,12 @@ knowledge lives in adapters, and field meaning comes from a semantic catalog tha
 | `packages/storage`          | The profiles-and-answers store, migrations, import/export, and adapters: memory, `chrome.storage`, IndexedDB, host-provided (DATA_MODEL.md) |
 | `packages/autofill-sdk`     | Headless controller (`createAutofill`), the page runtime, the DOM page driver and the `ufa/v1` message protocol                             |
 | `packages/extension-bridge` | Extension-page host: resolves the target tab, injects the runtime, proxies the page driver over `chrome.runtime` messaging                  |
+| `packages/synthetic-data`   | Seeded generator registry and category allowlists (see SYNTHETIC_DATA.md)                                                                   |
+| `packages/portal-adapters`  | Portal adapter registry, generic fallback, Workday/Greenhouse/Lever/Ashby detection (see Portals below)                                       |
 | `packages/ui`               | React panel and shadcn/ui-based components, scoped stylesheet, theme adapter, messages                                                      |
-| `packages/public-sdk`       | The published facade. Bundles everything above into `release/sdk`                                                                           |
+| `packages/public-sdk`       | The published facade. Bundles everything into `release/sdk`                                                                                 |
 | `apps/chrome-extension`     | The standalone MV3 extension                                                                                                                |
-
-Later phases add `synthetic-data` and `portal-adapters` packages, plus
-`apps/demo-host-extension`, which may only import the public package.
+| `apps/demo-host-extension`  | Minimal MV3 sample that imports only `@universal-form-autofill/sdk` (see SDK_INTEGRATION.md)                                                |
 
 ### Dependency direction
 
@@ -150,6 +150,20 @@ activation with keyboard fallbacks), verifies the value stuck, and records an un
 driver groups operations by frame, runs frames in order, and rewrites per-frame snapshot ids into one
 combined id for `restore`. Fill and undo are serialized through the controller queue; events such as
 `fill:complete` and `restore:complete` carry ids and statuses only, never profile values.
+
+**Synthetic preview** (`@ufa/synthetic-data`) is off by default. `controller.generate()` writes only to
+in-memory `state.generated`; the panel shows a generated badge and uses those values in the next
+`fill()` when policies allow. **Clear** (`controller.clear()`) plans operations from settings
+(`clear.includeSelects`, `clear.includeChoiceControls`), confirms in the UI, snapshots like fill, and
+shares `controller.undo()` / `restore`. See [SYNTHETIC_DATA.md](./SYNTHETIC_DATA.md).
+
+## Portals
+
+`@ufa/portal-adapters` exposes `resolvePortalAdapter(context)` and built-in adapters. The DOM page
+driver resolves the active adapter on each scan, sets `PageInfo.adapterId` / `adapterName`, prepends
+adapter detectors to the generic scanner, and delegates `fillField` when an adapter provides one.
+Vendor adapters document limitations (for example Workday apply behind sign-in). Hosts can register
+more adapters on the controller `PluginRegistry`.
 
 ## Learning
 

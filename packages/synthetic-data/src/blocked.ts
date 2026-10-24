@@ -1,0 +1,20 @@
+/** Factual, legal or employment answers are never synthesized. */
+export const GENERATION_BLOCKED_SEMANTIC_KEYS = new Set<string>([
+  'education',
+  'degree',
+  'fieldOfStudy',
+  'university',
+  'graduationYear',
+  'gpa',
+  'currentEmployer',
+  'currentTitle',
+  'yearsOfExperience',
+  'currentSalary',
+  'expectedSalary',
+  'workAuthorization',
+  'requiresSponsorship',
+  'employmentHistory',
+  'dateOfBirth',
+  'ssn',
+  'nationalId',
+])

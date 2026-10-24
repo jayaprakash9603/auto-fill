@@ -3,8 +3,10 @@ import type {
   AutofillEventHandler,
   AutofillEventType,
   FieldDescriptor,
+  ClearResult,
   FillResult,
   LearningCandidate,
+  SyntheticGenerationResult,
   Logger,
   MatchResult,
   PageDriver,
@@ -45,6 +47,10 @@ export interface AutofillState {
   decisions: Record<string, PolicyDecision>
   /** Outcome of the latest fill or undo for each field it touched, by field id. */
   results: Record<string, FillResult>
+  /** Ephemeral generated values for this page session; never persisted. */
+  generated: Record<string, SyntheticGenerationResult>
+  /** Outcome of the latest clear for each field it touched. */
+  clearResults: Record<string, ClearResult>
   scanning: boolean
   /** A fill or undo is running. */
   filling: boolean
@@ -56,6 +62,14 @@ export interface AutofillState {
   learningArmed: boolean
   /** Values the user typed into unmatched fields while learning was armed. */
   learningCandidates: Record<string, LearningCandidate>
+}
+
+export interface GenerateRequest {
+  fieldIds?: readonly string[]
+}
+
+export interface ClearRequest {
+  fieldIds?: readonly string[]
 }
 
 export interface FillRequest {
@@ -110,6 +124,10 @@ export interface AutofillController {
    * Page actions run one at a time; a second call waits for the first.
    */
   fill(request?: FillRequest): Promise<FillResult[]>
+  /** Builds ephemeral generated values for eligible fields; does not change the page. */
+  generate(request?: GenerateRequest): Promise<SyntheticGenerationResult[]>
+  /** Clears selected eligible fields and records undo snapshots. */
+  clear(request?: ClearRequest): Promise<ClearResult[]>
   /** Puts back what the latest fill replaced, except fields the user changed since. */
   undo(): Promise<RestoreResult[]>
   /** Arms or disarms learning capture on the connected page. */

@@ -8,7 +8,8 @@
     ".": "./src/index.ts",
     "./react": "./src/react.ts",
     "./extension": "./src/extension.ts",
-    "./content": "./src/content.ts"
+    "./content": "./src/content.ts",
+    "./style.css": "./style.css"
   },
   "scripts": {
     "build": "node scripts/build.mjs",

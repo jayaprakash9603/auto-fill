@@ -8,10 +8,13 @@ import {
 } from '@ufa/autofill-sdk'
 import {
   AutofillError,
+  clearOperationSchema,
   fillOperationSchema,
   scanRequestSchema,
   throwIfAborted,
   toAutofillError,
+  type ClearOperation,
+  type ClearResult,
   type FieldDescriptor,
   type FillOperation,
   type FillResult,
@@ -323,6 +326,65 @@ export function createExtensionTabDriver(options: ExtensionTabDriverOptions): Ex
       }
       if (parts.length > 0) snapshots.set(tabSnapshotId, parts)
       return parsed.map((operation) => results.get(operation) as FillResult)
+    },
+    async clear(operations, signal) {
+      requireConnection()
+      const parsed = operations.map((operation) => clearOperationSchema.parse(operation))
+      const byFrame = new Map<number, ClearOperation[]>()
+      const results = new Map<ClearOperation, ClearResult>()
+      for (const operation of parsed) {
+        const frameId = fieldFrames.get(operation.fieldId)
+        if (frameId === undefined) {
+          results.set(operation, {
+            fieldId: operation.fieldId,
+            status: 'failed',
+            reason: 'The field is no longer on the page.',
+            verified: false,
+            snapshotId: null,
+          })
+          continue
+        }
+        byFrame.set(frameId, [...(byFrame.get(frameId) ?? []), operation])
+      }
+      snapshotCounter += 1
+      const tabSnapshotId = `t${Date.now().toString(36)}${snapshotCounter}`
+      const parts: { frameId: number; snapshotId: string }[] = []
+      for (const frameId of [...byFrame.keys()].sort((a, b) => a - b)) {
+        const frameOperations = byFrame.get(frameId) ?? []
+        throwIfAborted(signal)
+        let frameResults: ClearResult[]
+        try {
+          frameResults = await send('clear', { operations: frameOperations }, frameId, fillTimeout)
+        } catch (error) {
+          const reason = toAutofillError(error).message
+          frameResults = frameOperations.map((op) => ({
+            fieldId: op.fieldId,
+            status: 'failed',
+            reason,
+            verified: false,
+            snapshotId: null,
+          }))
+        }
+        const frameSnapshot = frameResults.find((result) => result.snapshotId)?.snapshotId
+        if (frameSnapshot) parts.push({ frameId, snapshotId: frameSnapshot })
+        frameOperations.forEach((operation, index) => {
+          const result = frameResults[index]
+          results.set(
+            operation,
+            result && result.fieldId === operation.fieldId
+              ? { ...result, snapshotId: result.snapshotId ? tabSnapshotId : null }
+              : {
+                  fieldId: operation.fieldId,
+                  status: 'failed',
+                  reason: 'The page returned no result for this field.',
+                  verified: false,
+                  snapshotId: null,
+                },
+          )
+        })
+      }
+      if (parts.length > 0) snapshots.set(tabSnapshotId, parts)
+      return parsed.map((operation) => results.get(operation) as ClearResult)
     },
     async restore(snapshotId, signal) {
       requireConnection()

@@ -19,6 +19,9 @@ export interface FillBarProps {
   filling?: boolean
   canUndo?: boolean
   onUndo?: () => void
+  syntheticEnabled?: boolean
+  onGenerate?: () => void
+  onClear?: () => void
   /** Results of the latest fill, summarized for the user and assistive technology. */
   lastResults?: readonly FillResult[] | null
   /** A status line, e.g. after an undo or an error. */
@@ -49,6 +52,9 @@ export function FillBar({
   filling = false,
   canUndo = false,
   onUndo,
+  syntheticEnabled = false,
+  onGenerate,
+  onClear,
   lastResults = null,
   message = null,
   className,
@@ -112,6 +118,21 @@ export function FillBar({
             <Button size="sm" variant="outline" onClick={onUndo} disabled={filling}>
               <Undo2Icon />
               {t('fill.undo')}
+            </Button>
+          ) : null}
+          {syntheticEnabled && onGenerate ? (
+            <Button size="sm" variant="outline" onClick={onGenerate} disabled={filling || selectedCount === 0}>
+              {t('fill.generate', { count: selectedCount })}
+            </Button>
+          ) : null}
+          {onClear ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onClear}
+              disabled={filling || selectedCount === 0}
+            >
+              {t('fill.clear', { count: selectedCount })}
             </Button>
           ) : null}
         </div>

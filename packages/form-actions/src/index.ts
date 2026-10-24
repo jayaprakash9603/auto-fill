@@ -13,4 +13,5 @@ export {
   SAFETY_POLICY_ID,
   type PolicyEvaluationOptions,
 } from './policy'
+export { clearRefusalReason, emptyValueFor } from './clear'
 export { readControlValue, valueMatches } from './read'
