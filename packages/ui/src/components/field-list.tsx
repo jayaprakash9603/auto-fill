@@ -19,8 +19,9 @@ import { useTranslate, type MessageKey, type Translate } from '../i18n/messages'
 import { cn } from '../lib/cn'
 import { EmptyState } from './states'
 import { Badge, type BadgeProps } from './ui/badge'
-import { Checkbox, NativeSelect } from './ui/form-controls'
+import { Checkbox, Label } from './ui/form-controls'
 import { Spinner } from './ui/misc'
+import { SimpleSelect } from './ui/select'
 
 /** Match states with their own badge; skipped and unsupported fields already show why. */
 const STATE_BADGES: Partial<Record<MatchState, BadgeProps['variant']>> = {
@@ -310,10 +311,9 @@ function FieldRow({ field, context }: { field: FieldDescriptor; context: RowCont
   const stateBadge = match ? STATE_BADGES[match.state] : undefined
   const chosen = choice ? options.find((candidate) => candidate.answerId === choice) : undefined
   const best = chosen ?? match?.best ?? null
-  const generatedText = generated
-    ? describeFill(generated.value, field, t)
-    : null
-  const proposed = generatedText ?? (best?.fillValue ? describeFill(best.fillValue, field, t) : null)
+  const generatedText = generated ? describeFill(generated.value, field, t) : null
+  const proposed =
+    generatedText ?? (best?.fillValue ? describeFill(best.fillValue, field, t) : null)
   const selectable = canSelectField(match, decision, chosen !== undefined)
   const isSelected = selectable && !!context.selected?.has(field.id)
   const label = field.label || t('fields.unlabeled')
@@ -408,7 +408,9 @@ function FieldRow({ field, context }: { field: FieldDescriptor; context: RowCont
                 {proposed}
               </span>
               {generated ? (
-                <span className="ufa:shrink-0 ufa:text-muted-foreground">· {t('match.generated')}</span>
+                <span className="ufa:shrink-0 ufa:text-muted-foreground">
+                  · {t('match.generated')}
+                </span>
               ) : best ? (
                 <span className="ufa:shrink-0 ufa:text-muted-foreground">
                   {`· ${t(`match.level.${best.confidence.level}`)}`}
@@ -428,30 +430,25 @@ function FieldRow({ field, context }: { field: FieldDescriptor; context: RowCont
         ) : null}
         {context.selected && options.length > 1 ? (
           <div className="ufa:mt-1 ufa:flex ufa:flex-col ufa:gap-1">
-            <label htmlFor={choiceId} className="ufa:text-xs ufa:font-medium">
-              {t('fill.choose')}
-            </label>
-            <NativeSelect
+            <Label htmlFor={choiceId}>{t('fill.choose')}</Label>
+            <SimpleSelect
               id={choiceId}
               className="ufa:h-8 ufa:text-xs"
               value={choice ?? ''}
-              onChange={(event) => context.onChoiceChange?.(field.id, event.target.value)}
-            >
-              <option value="" disabled>
-                {t('fill.chooseHint')}
-              </option>
-              {options.map((candidate) => {
+              placeholder={t('fill.chooseHint')}
+              onValueChange={(answerId) => context.onChoiceChange?.(field.id, answerId)}
+              options={options.map((candidate) => {
                 const value = candidate.fillValue ? describeFill(candidate.fillValue, field, t) : ''
                 const answerLabel = context.answerLabels.get(candidate.answerId)
-                return (
-                  <option key={candidate.answerId} value={candidate.answerId}>
-                    {answerLabel && answerLabel !== field.label
+                return {
+                  value: candidate.answerId,
+                  label:
+                    answerLabel && answerLabel !== field.label
                       ? `${value} (${answerLabel})`
-                      : value}
-                  </option>
-                )
+                      : value,
+                }
               })}
-            </NativeSelect>
+            />
           </div>
         ) : null}
         {heldBack ? (

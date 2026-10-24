@@ -13,6 +13,7 @@ import { useTranslate } from '../../i18n/messages'
 import { Button } from '../ui/button'
 import { Checkbox, Input, Label } from '../ui/form-controls'
 import { Alert } from '../ui/misc'
+import { RadioGroup, RadioGroupItem } from '../ui/radio-group'
 import { ConfirmDialog, downloadText, ErrorMessage, Section } from './shared'
 
 export interface DataManagerProps {
@@ -91,7 +92,7 @@ function ImportSection({ store }: { store: AutofillStore }) {
   const t = useTranslate()
   const action = useAction()
   const inputId = useId()
-  const strategyName = useId()
+  const strategyId = useId()
   const settingsId = useId()
   const fileInput = useRef<HTMLInputElement>(null)
   const [bundle, setBundle] = useState<ExportBundle | null>(null)
@@ -161,27 +162,38 @@ function ImportSection({ store }: { store: AutofillStore }) {
 
       {bundle ? (
         <div className="ufa:flex ufa:flex-col ufa:gap-3 ufa:rounded-md ufa:border ufa:border-border ufa:p-3">
-          <fieldset className="ufa:flex ufa:flex-col ufa:gap-2">
-            <legend className="ufa:mb-1 ufa:text-xs ufa:font-medium">{t('data.strategy')}</legend>
-            {(['merge', 'replace'] as const).map((option) => (
-              <label key={option} className="ufa:flex ufa:items-start ufa:gap-2 ufa:text-sm">
-                <input
-                  type="radio"
-                  name={strategyName}
-                  value={option}
-                  checked={strategy === option}
-                  onChange={() => update(option, includeSettings)}
-                  className="ufa:mt-1 ufa:accent-primary"
-                />
-                <span className="ufa:flex ufa:flex-col">
-                  {t(`data.${option}`)}
-                  <span className="ufa:text-xs ufa:text-muted-foreground">
-                    {t(`data.${option}Hint`)}
-                  </span>
-                </span>
-              </label>
-            ))}
-          </fieldset>
+          <div className="ufa:flex ufa:flex-col ufa:gap-2">
+            <span id={strategyId} className="ufa:text-xs ufa:font-medium">
+              {t('data.strategy')}
+            </span>
+            <RadioGroup
+              aria-labelledby={strategyId}
+              value={strategy}
+              onValueChange={(option) => update(option as ImportStrategy, includeSettings)}
+            >
+              {(['merge', 'replace'] as const).map((option) => {
+                const itemId = `${strategyId}-${option}`
+                return (
+                  <div key={option} className="ufa:flex ufa:items-start ufa:gap-2">
+                    <RadioGroupItem
+                      id={itemId}
+                      value={option}
+                      className="ufa:mt-0.5"
+                      aria-describedby={`${itemId}-hint`}
+                    />
+                    <div className="ufa:flex ufa:flex-col ufa:gap-0.5">
+                      <Label htmlFor={itemId} className="ufa:text-sm ufa:font-normal">
+                        {t(`data.${option}`)}
+                      </Label>
+                      <span id={`${itemId}-hint`} className="ufa:text-xs ufa:text-muted-foreground">
+                        {t(`data.${option}Hint`)}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </RadioGroup>
+          </div>
           {bundle.settings ? (
             <div className="ufa:flex ufa:items-center ufa:gap-2">
               <Checkbox

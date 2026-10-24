@@ -7,13 +7,17 @@ import {
   type AnswerValue,
 } from '@ufa/core'
 import type { AnswerDraft, AutofillStore } from '@ufa/storage'
+import { ChevronDownIcon } from 'lucide-react'
 import { useId, useMemo, useState, type FormEvent } from 'react'
 
 import { useAction, useStoreSnapshot } from '../../hooks/use-store'
 import { useTranslate } from '../../i18n/messages'
 import { Button } from '../ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
-import { Checkbox, Input, Label, NativeSelect, Textarea } from '../ui/form-controls'
+import { Checkbox, Input, Label, Textarea } from '../ui/form-controls'
+import { RadioGroup, RadioGroupItem } from '../ui/radio-group'
+import { SimpleSelect } from '../ui/select'
 import { categoryOptions, ErrorMessage, FormField, splitList } from './shared'
 
 type ValueKind = AnswerValue['kind']
@@ -96,7 +100,7 @@ function EditorDialog({
   const [state, setState] = useState(() => initialState(answer, defaultProfileId))
   const [notice, setNotice] = useState<string | null>(null)
   const preferredId = useId()
-  const kindName = useId()
+  const kindId = useId()
   const set = <K extends keyof EditorState>(key: K, value: EditorState[K]) =>
     setState((current) => ({ ...current, [key]: value }))
 
@@ -169,31 +173,25 @@ function EditorDialog({
       <form className="ufa:flex ufa:flex-col ufa:gap-3" onSubmit={(event) => void submit(event)}>
         <FormField label={t('editor.field')}>
           {(field) => (
-            <NativeSelect
+            <SimpleSelect
               {...field}
               value={state.semanticKey}
-              onChange={(event) => chooseField(event.target.value)}
-            >
-              <option value="">{t('editor.fieldNone')}</option>
-              {snapshot.customFields.length ? (
-                <optgroup label={t('editor.fieldCustom')}>
-                  {snapshot.customFields.map((custom) => (
-                    <option key={custom.key} value={custom.key}>
-                      {custom.label}
-                    </option>
-                  ))}
-                </optgroup>
-              ) : null}
-              {catalogGroups.map(([category, entries]) => (
-                <optgroup key={category} label={t(`category.${category}`)}>
-                  {entries.map((entry) => (
-                    <option key={entry.key} value={entry.key}>
-                      {entry.label}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </NativeSelect>
+              onValueChange={chooseField}
+              options={[{ value: '', label: t('editor.fieldNone') }]}
+              groups={[
+                {
+                  label: t('editor.fieldCustom'),
+                  options: snapshot.customFields.map((custom) => ({
+                    value: custom.key,
+                    label: custom.label,
+                  })),
+                },
+                ...catalogGroups.map(([category, entries]) => ({
+                  label: t(`category.${category}`),
+                  options: entries.map((entry) => ({ value: entry.key, label: entry.label })),
+                })),
+              ]}
+            />
           )}
         </FormField>
 
@@ -209,24 +207,26 @@ function EditorDialog({
           )}
         </FormField>
 
-        <fieldset className="ufa:flex ufa:flex-col ufa:gap-1.5">
-          <legend className="ufa:mb-1.5 ufa:text-xs ufa:font-medium">{t('editor.kind')}</legend>
-          <div className="ufa:flex ufa:flex-wrap ufa:gap-3">
+        <div className="ufa:flex ufa:flex-col ufa:gap-1.5">
+          <span id={kindId} className="ufa:text-xs ufa:font-medium">
+            {t('editor.kind')}
+          </span>
+          <RadioGroup
+            aria-labelledby={kindId}
+            value={state.kind}
+            onValueChange={(kind) => set('kind', kind as ValueKind)}
+            className="ufa:flex ufa:flex-wrap ufa:gap-3"
+          >
             {(['text', 'boolean', 'list'] as const).map((kind) => (
-              <label key={kind} className="ufa:flex ufa:items-center ufa:gap-1.5 ufa:text-sm">
-                <input
-                  type="radio"
-                  name={kindName}
-                  value={kind}
-                  checked={state.kind === kind}
-                  onChange={() => set('kind', kind)}
-                  className="ufa:accent-primary"
-                />
-                {t(`editor.kind.${kind}`)}
-              </label>
+              <div key={kind} className="ufa:flex ufa:items-center ufa:gap-1.5">
+                <RadioGroupItem id={`${kindId}-${kind}`} value={kind} />
+                <Label htmlFor={`${kindId}-${kind}`} className="ufa:text-sm ufa:font-normal">
+                  {t(`editor.kind.${kind}`)}
+                </Label>
+              </div>
             ))}
-          </div>
-        </fieldset>
+          </RadioGroup>
+        </div>
 
         {state.kind === 'text' ? (
           <FormField label={t('editor.value')}>
@@ -254,14 +254,15 @@ function EditorDialog({
         ) : (
           <FormField label={t('editor.value')}>
             {(field) => (
-              <NativeSelect
+              <SimpleSelect
                 {...field}
                 value={state.bool ? 'yes' : 'no'}
-                onChange={(event) => set('bool', event.target.value === 'yes')}
-              >
-                <option value="yes">{t('editor.yes')}</option>
-                <option value="no">{t('editor.no')}</option>
-              </NativeSelect>
+                onValueChange={(value) => set('bool', value === 'yes')}
+                options={[
+                  { value: 'yes', label: t('editor.yes') },
+                  { value: 'no', label: t('editor.no') },
+                ]}
+              />
             )}
           </FormField>
         )}
@@ -269,34 +270,28 @@ function EditorDialog({
         <div className="ufa:grid ufa:grid-cols-2 ufa:gap-3">
           <FormField label={t('editor.scope')}>
             {(field) => (
-              <NativeSelect
+              <SimpleSelect
                 {...field}
                 value={state.profileId}
-                onChange={(event) => set('profileId', event.target.value)}
-              >
-                <option value={GLOBAL}>{t('answers.allProfiles')}</option>
-                {snapshot.profiles.map((profile) => (
-                  <option key={profile.id} value={profile.id}>
-                    {profile.name}
-                  </option>
-                ))}
-              </NativeSelect>
+                onValueChange={(profileId) => set('profileId', profileId)}
+                options={[
+                  { value: GLOBAL, label: t('answers.allProfiles') },
+                  ...snapshot.profiles.map((profile) => ({
+                    value: profile.id,
+                    label: profile.name,
+                  })),
+                ]}
+              />
             )}
           </FormField>
           <FormField label={t('editor.category')}>
             {(field) => (
-              <NativeSelect
+              <SimpleSelect
                 {...field}
                 value={state.category}
-                onChange={(event) => set('category', event.target.value as AnswerCategory | '')}
-              >
-                <option value="">—</option>
-                {categoryOptions(t).map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </NativeSelect>
+                onValueChange={(category) => set('category', category as AnswerCategory | '')}
+                options={[{ value: '', label: '—' }, ...categoryOptions(t)]}
+              />
             )}
           </FormField>
         </div>
@@ -320,14 +315,18 @@ function EditorDialog({
           )}
         </FormField>
 
-        <details
+        <Collapsible
           className="ufa:rounded-md ufa:border ufa:border-border ufa:px-3 ufa:py-2"
-          open={Boolean(state.sites || state.sections || state.forms)}
+          defaultOpen={Boolean(state.sites || state.sections || state.forms)}
         >
-          <summary className="ufa:cursor-pointer ufa:text-xs ufa:font-medium">
+          <CollapsibleTrigger className="ufa:group ufa:flex ufa:w-full ufa:items-center ufa:justify-between ufa:gap-2 ufa:rounded-sm ufa:text-left ufa:text-xs ufa:font-medium ufa:outline-none ufa:focus-visible:outline-2 ufa:focus-visible:outline-ring/40">
             {t('editor.context')}
-          </summary>
-          <div className="ufa:mt-2 ufa:flex ufa:flex-col ufa:gap-3">
+            <ChevronDownIcon
+              aria-hidden
+              className="ufa:size-4 ufa:shrink-0 ufa:text-muted-foreground ufa:transition-transform ufa:group-data-[state=open]:rotate-180"
+            />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="ufa:mt-2 ufa:flex ufa:flex-col ufa:gap-3">
             <FormField label={t('editor.sites')} hint={t('editor.sitesHint')}>
               {(field) => (
                 <Input
@@ -355,8 +354,8 @@ function EditorDialog({
                 />
               )}
             </FormField>
-          </div>
-        </details>
+          </CollapsibleContent>
+        </Collapsible>
 
         <div className="ufa:flex ufa:items-center ufa:gap-2">
           <Checkbox

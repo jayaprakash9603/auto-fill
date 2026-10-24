@@ -285,7 +285,7 @@ function PageFields({
   const [learningBusy, setLearningBusy] = useState(false)
   const [clearOpen, setClearOpen] = useState(false)
   const candidates = Object.values(state.learningCandidates)
-  const activeCandidate = learningId ? state.learningCandidates[learningId] ?? null : null
+  const activeCandidate = learningId ? (state.learningCandidates[learningId] ?? null) : null
 
   const { selected, selectable } = useMemo(() => {
     const chosen = new Set<string>()

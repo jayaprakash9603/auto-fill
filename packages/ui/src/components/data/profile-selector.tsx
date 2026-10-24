@@ -4,7 +4,8 @@ import { useId } from 'react'
 import { useAction, useStoreSnapshot } from '../../hooks/use-store'
 import { useTranslate } from '../../i18n/messages'
 import { cn } from '../../lib/cn'
-import { Label, NativeSelect } from '../ui/form-controls'
+import { Label } from '../ui/form-controls'
+import { SimpleSelect } from '../ui/select'
 
 export interface ProfileSelectorProps {
   store: AutofillStore | null
@@ -25,23 +26,20 @@ export function ProfileSelector({ store, className }: ProfileSelectorProps) {
         <Label htmlFor={id} className="ufa:shrink-0 ufa:text-muted-foreground">
           {t('profile.label')}
         </Label>
-        <NativeSelect
+        <SimpleSelect
           id={id}
           className="ufa:h-8"
           value={snapshot.activeProfile?.id ?? ''}
           disabled={!ready || action.pending}
-          onChange={(event) => {
-            const profileId = event.target.value
+          placeholder={ready ? undefined : t('store.loading')}
+          onValueChange={(profileId) => {
             if (store) void action.run(() => store.profiles.setActive(profileId))
           }}
-        >
-          {ready ? null : <option value="">{t('store.loading')}</option>}
-          {snapshot.profiles.map((profile) => (
-            <option key={profile.id} value={profile.id}>
-              {profile.isDefault ? `${profile.name} (${t('profile.default')})` : profile.name}
-            </option>
-          ))}
-        </NativeSelect>
+          options={snapshot.profiles.map((profile) => ({
+            value: profile.id,
+            label: profile.isDefault ? `${profile.name} (${t('profile.default')})` : profile.name,
+          }))}
+        />
       </div>
       {action.error ? (
         <p role="alert" className="ufa:text-xs ufa:text-destructive">

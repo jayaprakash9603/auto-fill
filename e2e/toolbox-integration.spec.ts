@@ -88,7 +88,7 @@ test.describe('Browser Toolbox integration', () => {
     const page = await context.newPage()
     await page.goto(`chrome-extension://${extensionId}/${TOOL_URL}`)
     const panel = page.locator('.ufa-root:not([data-ufa-portal])')
-    const selected = panel.getByRole('combobox', { name: 'Profile' }).locator('option:checked')
+    const selected = panel.getByRole('combobox', { name: 'Profile' })
     await expect(selected).toHaveText('General (Default)')
 
     await createProfile(page, 'Backend roles', 'Software developer', panel)

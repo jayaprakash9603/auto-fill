@@ -1,5 +1,12 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 
+/** Opens a shadcn select and picks an option; the list is portalled into the page's `.ufa-root`. */
+export async function chooseOption(page: Page, trigger: Locator, option: string) {
+  await trigger.click()
+  await page.getByRole('option', { name: option, exact: true }).click()
+  await expect(page.getByRole('listbox')).toBeHidden()
+}
+
 /** Panel controls are looked up in `scope`; dialogs are portalled to the page body. */
 export async function createProfile(
   page: Page,
@@ -11,7 +18,7 @@ export async function createProfile(
   await scope.getByRole('button', { name: 'New profile' }).click()
   const dialog = page.getByRole('dialog', { name: 'New profile' })
   await dialog.getByLabel('Name').fill(name)
-  await dialog.getByLabel('Start from').selectOption({ label: template })
+  await chooseOption(page, dialog.getByRole('combobox', { name: 'Start from' }), template)
   await dialog.getByRole('button', { name: 'Create profile' }).click()
   await expect(dialog).toBeHidden()
 }

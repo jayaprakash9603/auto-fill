@@ -15,7 +15,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu'
-import { Input, NativeSelect } from '../ui/form-controls'
+import { Input } from '../ui/form-controls'
+import { SimpleSelect } from '../ui/select'
 import { ProfileDetailsDialog } from './profile-details'
 import { ConfirmDialog, ErrorMessage, FormField, Section } from './shared'
 
@@ -246,17 +247,15 @@ function ProfileDialog({
             hint={PROFILE_TEMPLATES.find((template) => template.id === templateId)?.description}
           >
             {(props) => (
-              <NativeSelect
+              <SimpleSelect
                 {...props}
                 value={templateId}
-                onChange={(event) => setTemplateId(event.target.value)}
-              >
-                {PROFILE_TEMPLATES.map((template) => (
-                  <option key={template.id} value={template.id}>
-                    {template.name}
-                  </option>
-                ))}
-              </NativeSelect>
+                onValueChange={setTemplateId}
+                options={PROFILE_TEMPLATES.map((template) => ({
+                  value: template.id,
+                  label: template.name,
+                }))}
+              />
             )}
           </FormField>
         )}

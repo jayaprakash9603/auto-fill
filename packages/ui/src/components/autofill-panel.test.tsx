@@ -301,7 +301,7 @@ describe('AutofillPanel', () => {
     expect(await screen.findByText("This page can't be autofilled")).toBeInTheDocument()
 
     const selector = await screen.findByRole('combobox', { name: 'Profile' })
-    await waitFor(() => expect(selector).toHaveDisplayValue(/General/))
+    await waitFor(() => expect(selector).toHaveTextContent(/General/))
 
     await user.click(screen.getByRole('tab', { name: 'Answers' }))
     expect(await screen.findByText('No saved answers yet')).toBeInTheDocument()

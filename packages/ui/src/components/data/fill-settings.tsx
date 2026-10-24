@@ -1,4 +1,9 @@
-import { AUTOFILL_MODES, SYNTHETIC_CATEGORIES, type AutofillSettingsInput } from '@ufa/core'
+import {
+  AUTOFILL_MODES,
+  SYNTHETIC_CATEGORIES,
+  type AutofillMode,
+  type AutofillSettingsInput,
+} from '@ufa/core'
 import type { AutofillStore } from '@ufa/storage'
 import { PlusIcon, XIcon } from 'lucide-react'
 import { useId, useState, type FormEvent } from 'react'
@@ -7,7 +12,9 @@ import { useAction, useStoreSnapshot } from '../../hooks/use-store'
 import { useTranslate } from '../../i18n/messages'
 import { cn } from '../../lib/cn'
 import { Button } from '../ui/button'
-import { Input, Label, NativeSelect, Switch } from '../ui/form-controls'
+import { Input, Label, Switch } from '../ui/form-controls'
+import { RadioGroup, RadioGroupItem } from '../ui/radio-group'
+import { SimpleSelect } from '../ui/select'
 
 const HOST = /^(\*\.)?([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)*[a-z0-9]([a-z0-9-]*[a-z0-9])?$/
 const MIN_CONFIDENCE_CHOICES = [0.9, 0.95, 0.98] as const
@@ -71,31 +78,46 @@ export function FillSettings({ store, currentSite, className }: FillSettingsProp
         {t('settings.title')}
       </h3>
 
-      <fieldset className="ufa:flex ufa:flex-col ufa:gap-2">
-        <legend className="ufa:mb-1 ufa:text-xs ufa:font-medium">{t('settings.mode')}</legend>
-        {AUTOFILL_MODES.map((mode) => (
-          <label
-            key={mode}
-            className={cn(
-              'ufa:flex ufa:cursor-pointer ufa:items-start ufa:gap-2 ufa:rounded-md ufa:border ufa:border-border ufa:px-3 ufa:py-2',
-              settings.mode === mode && 'ufa:border-primary ufa:bg-accent/40',
-            )}
-          >
-            <input
-              type="radio"
-              name={`${ids.hint}-mode`}
-              value={mode}
-              checked={settings.mode === mode}
-              onChange={() => update({ mode })}
-              className="ufa:mt-0.5 ufa:accent-primary"
-            />
-            <span className="ufa:flex ufa:flex-col">
-              <span className="ufa:text-sm ufa:font-medium">{t(`mode.${mode}`)}</span>
-              <span className="ufa:text-xs ufa:text-muted-foreground">{t(`mode.${mode}Hint`)}</span>
-            </span>
-          </label>
-        ))}
-      </fieldset>
+      <div className="ufa:flex ufa:flex-col ufa:gap-2">
+        <span id={`${ids.hint}-mode`} className="ufa:text-xs ufa:font-medium">
+          {t('settings.mode')}
+        </span>
+        <RadioGroup
+          aria-labelledby={`${ids.hint}-mode`}
+          value={settings.mode}
+          onValueChange={(mode) => update({ mode: mode as AutofillMode })}
+        >
+          {AUTOFILL_MODES.map((mode) => {
+            const itemId = `${ids.hint}-mode-${mode}`
+            return (
+              <Label
+                key={mode}
+                htmlFor={itemId}
+                className={cn(
+                  'ufa:cursor-pointer ufa:items-start ufa:gap-2 ufa:rounded-md ufa:border ufa:border-border ufa:px-3 ufa:py-2 ufa:font-normal ufa:transition-colors ufa:hover:bg-accent/30',
+                  settings.mode === mode && 'ufa:border-primary ufa:bg-accent/40',
+                )}
+              >
+                <RadioGroupItem
+                  id={itemId}
+                  value={mode}
+                  className="ufa:mt-0.5"
+                  aria-labelledby={`${itemId}-title`}
+                  aria-describedby={`${itemId}-hint`}
+                />
+                <span className="ufa:flex ufa:flex-col">
+                  <span id={`${itemId}-title`} className="ufa:text-sm ufa:font-medium">
+                    {t(`mode.${mode}`)}
+                  </span>
+                  <span id={`${itemId}-hint`} className="ufa:text-xs ufa:text-muted-foreground">
+                    {t(`mode.${mode}Hint`)}
+                  </span>
+                </span>
+              </Label>
+            )
+          })}
+        </RadioGroup>
+      </div>
 
       <div className="ufa:flex ufa:items-start ufa:gap-3">
         <Switch
@@ -222,20 +244,15 @@ export function FillSettings({ store, currentSite, className }: FillSettingsProp
           <Label htmlFor={ids.confidence} className="ufa:flex-1">
             {t('settings.minConfidence')}
           </Label>
-          <NativeSelect
+          <SimpleSelect
             id={ids.confidence}
             className="ufa:w-24"
             value={String(settings.trusted.minConfidence)}
-            onChange={(event) => update({ trusted: { minConfidence: Number(event.target.value) } })}
-          >
-            {[...new Set([...MIN_CONFIDENCE_CHOICES, settings.trusted.minConfidence])]
+            onValueChange={(value) => update({ trusted: { minConfidence: Number(value) } })}
+            options={[...new Set([...MIN_CONFIDENCE_CHOICES, settings.trusted.minConfidence])]
               .sort((a, b) => a - b)
-              .map((value) => (
-                <option key={value} value={String(value)}>
-                  {`${Math.round(value * 100)}%`}
-                </option>
-              ))}
-          </NativeSelect>
+              .map((value) => ({ value: String(value), label: `${Math.round(value * 100)}%` }))}
+          />
         </div>
       </div>
 

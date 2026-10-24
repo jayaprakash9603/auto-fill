@@ -18,7 +18,8 @@ import { useTranslate } from '../../i18n/messages'
 import { EmptyState } from '../states'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
-import { Checkbox, Input, NativeSelect } from '../ui/form-controls'
+import { Checkbox, Input } from '../ui/form-controls'
+import { SimpleSelect } from '../ui/select'
 import { Alert } from '../ui/misc'
 import { AnswerEditor } from './answer-editor'
 import { categoryOptions, ConfirmDialog, ErrorMessage, scopeLabel, Section } from './shared'
@@ -115,33 +116,27 @@ export function AnswerLibrary({ store, className }: AnswerLibraryProps) {
           aria-label={t('answers.search')}
         />
         <div className="ufa:grid ufa:grid-cols-2 ufa:gap-2">
-          <NativeSelect
+          <SimpleSelect
             aria-label={t('answers.scope')}
             value={scope}
-            onChange={(event) => setScope(event.target.value)}
+            onValueChange={setScope}
             className="ufa:h-8"
-          >
-            <option value={ALL}>{t('answers.scopeAll')}</option>
-            <option value={GLOBAL}>{t('answers.scopeGlobal')}</option>
-            {snapshot.profiles.map((profile) => (
-              <option key={profile.id} value={profile.id}>
-                {t('answers.scopeProfile', { name: profile.name })}
-              </option>
-            ))}
-          </NativeSelect>
-          <NativeSelect
+            options={[
+              { value: ALL, label: t('answers.scopeAll') },
+              { value: GLOBAL, label: t('answers.scopeGlobal') },
+              ...snapshot.profiles.map((profile) => ({
+                value: profile.id,
+                label: t('answers.scopeProfile', { name: profile.name }),
+              })),
+            ]}
+          />
+          <SimpleSelect
             aria-label={t('answers.category')}
             value={category}
-            onChange={(event) => setCategory(event.target.value as AnswerCategory | '')}
+            onValueChange={(next) => setCategory(next as AnswerCategory | '')}
             className="ufa:h-8"
-          >
-            <option value="">{t('answers.categoryAll')}</option>
-            {categoryOptions(t).map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </NativeSelect>
+            options={[{ value: '', label: t('answers.categoryAll') }, ...categoryOptions(t)]}
+          />
         </div>
       </div>
 
@@ -176,19 +171,16 @@ export function AnswerLibrary({ store, className }: AnswerLibraryProps) {
           <span className="ufa:text-xs ufa:font-medium">
             {t('answers.selected', { count: selectedIds.length })}
           </span>
-          <NativeSelect
+          <SimpleSelect
             aria-label={t('answers.moveTo')}
             value={moveTo}
-            onChange={(event) => setMoveTo(event.target.value)}
+            onValueChange={setMoveTo}
             className="ufa:h-8 ufa:w-auto ufa:flex-1"
-          >
-            <option value={GLOBAL}>{t('answers.allProfiles')}</option>
-            {snapshot.profiles.map((profile) => (
-              <option key={profile.id} value={profile.id}>
-                {profile.name}
-              </option>
-            ))}
-          </NativeSelect>
+            options={[
+              { value: GLOBAL, label: t('answers.allProfiles') },
+              ...snapshot.profiles.map((profile) => ({ value: profile.id, label: profile.name })),
+            ]}
+          />
           <Button
             variant="outline"
             size="sm"

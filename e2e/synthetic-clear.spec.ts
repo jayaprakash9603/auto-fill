@@ -26,7 +26,9 @@ test.describe('synthetic and clear', () => {
     const first = list.locator('li', { hasText: 'First name' })
     await first.getByRole('checkbox').check()
     await panel.getByRole('button', { name: /Generate preview/i }).click()
-    await expect(first.locator('[data-slot="match-proposal"]')).toContainText(/Generated preview|Hopper|Lovelace/i)
+    await expect(first.locator('[data-slot="match-proposal"]')).toContainText(
+      /Generated preview|Hopper|Lovelace/i,
+    )
 
     await page.fill('#first-name', 'Before')
     await panel.getByRole('button', { name: 'Refresh' }).click()

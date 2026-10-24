@@ -5,8 +5,9 @@ import { useId } from 'react'
 import { useTranslate } from '../i18n/messages'
 import { cn } from '../lib/cn'
 import { Button } from './ui/button'
-import { NativeSelect } from './ui/form-controls'
+import { Label } from './ui/form-controls'
 import { Spinner } from './ui/misc'
+import { SimpleSelect } from './ui/select'
 
 export interface FillBarProps {
   mode: AutofillMode
@@ -72,23 +73,18 @@ export function FillBar({
       )}
     >
       <div className="ufa:flex ufa:items-center ufa:gap-2">
-        <label htmlFor={modeId} className="ufa:text-xs ufa:font-medium">
+        <Label htmlFor={modeId} className="ufa:shrink-0">
           {t('mode.label')}
-        </label>
-        <NativeSelect
+        </Label>
+        <SimpleSelect
           id={modeId}
-          className="ufa:h-8 ufa:w-28 ufa:text-xs"
+          className="ufa:h-8 ufa:w-28 ufa:shrink-0 ufa:text-xs"
           value={mode}
           disabled={!onModeChange || filling}
           aria-describedby={`${modeId}-hint`}
-          onChange={(event) => onModeChange?.(event.target.value as AutofillMode)}
-        >
-          {AUTOFILL_MODES.map((entry) => (
-            <option key={entry} value={entry}>
-              {t(`mode.${entry}`)}
-            </option>
-          ))}
-        </NativeSelect>
+          onValueChange={(entry) => onModeChange?.(entry as AutofillMode)}
+          options={AUTOFILL_MODES.map((entry) => ({ value: entry, label: t(`mode.${entry}`) }))}
+        />
         <p
           id={`${modeId}-hint`}
           className="ufa:min-w-0 ufa:flex-1 ufa:text-xs ufa:text-muted-foreground"
@@ -121,7 +117,12 @@ export function FillBar({
             </Button>
           ) : null}
           {syntheticEnabled && onGenerate ? (
-            <Button size="sm" variant="outline" onClick={onGenerate} disabled={filling || selectedCount === 0}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onGenerate}
+              disabled={filling || selectedCount === 0}
+            >
               {t('fill.generate', { count: selectedCount })}
             </Button>
           ) : null}

@@ -18,6 +18,11 @@ async function enter(user: ReturnType<typeof setupUser>, element: HTMLElement, v
   await user.paste(value)
 }
 
+async function choose(user: ReturnType<typeof setupUser>, trigger: HTMLElement, option: string) {
+  await user.click(trigger)
+  await user.click(await screen.findByRole('option', { name: option }))
+}
+
 async function setup() {
   const storage = createMemoryStorage()
   const store = createAutofillStore({ adapter: storage })
@@ -40,11 +45,12 @@ describe('ProfileSelector', () => {
     inRoot(<ProfileSelector store={store} />)
 
     const select = screen.getByRole('combobox', { name: 'Profile' })
-    expect(select).toHaveDisplayValue(/General/)
-    await user.selectOptions(select, backend.id)
+    expect(select).toHaveTextContent(/General/)
+    await choose(user, select, 'Backend roles')
 
     await waitFor(() => expect(store.getSnapshot().activeProfile?.id).toBe(backend.id))
-    expect(select).toHaveDisplayValue('Backend roles')
+    expect(select).toHaveTextContent('Backend roles')
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
 
     const reopened = createAutofillStore({ adapter: storage })
     await reopened.ready()
@@ -61,7 +67,7 @@ describe('ProfileManager', () => {
     await user.click(screen.getByRole('button', { name: 'New profile' }))
     const dialog = await screen.findByRole('dialog', { name: 'New profile' })
     await enter(user, within(dialog).getByLabelText('Name'), 'QA roles')
-    await user.selectOptions(within(dialog).getByLabelText('Start from'), 'software-testing')
+    await choose(user, within(dialog).getByLabelText('Start from'), 'Software testing')
     await user.click(within(dialog).getByRole('button', { name: 'Create profile' }))
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())

@@ -16,7 +16,11 @@ export function Input({ className, type = 'text', ...props }: ComponentProps<'in
     <input
       data-slot="input"
       type={type}
-      className={cn(fieldBase, 'ufa:h-9', className)}
+      className={cn(
+        fieldBase,
+        'ufa:h-9 ufa:file:mr-2 ufa:file:inline-flex ufa:file:h-6 ufa:file:cursor-pointer ufa:file:items-center ufa:file:rounded-sm ufa:file:border-0 ufa:file:bg-secondary ufa:file:px-2 ufa:file:text-xs ufa:file:font-medium ufa:file:text-secondary-foreground',
+        className,
+      )}
       {...props}
     />
   )
@@ -74,15 +78,5 @@ export function Switch({ className, ...props }: ComponentProps<typeof SwitchPrim
     >
       <SwitchPrimitive.Thumb className="ufa:pointer-events-none ufa:block ufa:size-4 ufa:rounded-full ufa:bg-background ufa:shadow ufa:transition-transform ufa:data-[state=checked]:translate-x-4 ufa:data-[state=unchecked]:translate-x-0.5" />
     </SwitchPrimitive.Root>
-  )
-}
-
-export function NativeSelect({ className, ...props }: ComponentProps<'select'>) {
-  return (
-    <select
-      data-slot="native-select"
-      className={cn(fieldBase, 'ufa:h-9 ufa:pr-7', className)}
-      {...props}
-    />
   )
 }

@@ -5,7 +5,8 @@ import { useState } from 'react'
 import { useTranslate } from '../i18n/messages'
 import { Button } from './ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogTitle } from './ui/dialog'
-import { Input, Label, NativeSelect } from './ui/form-controls'
+import { Input, Label } from './ui/form-controls'
+import { SimpleSelect } from './ui/select'
 
 export interface LearningConfirmationDialogProps {
   candidate: LearningCandidate | null
@@ -64,16 +65,17 @@ function LearningForm({
         </div>
         <div className="ufa:flex ufa:flex-col ufa:gap-1">
           <Label htmlFor="learn-key">{t('learning.category')}</Label>
-          <NativeSelect
+          <SimpleSelect
             id="learn-key"
             value={semanticKey}
-            onChange={(event) => setSemanticKey(event.target.value)}
-          >
-            <option value="">{t('learning.categoryNone')}</option>
-            {candidate.field.semanticKey ? (
-              <option value={candidate.field.semanticKey}>{candidate.field.semanticKey}</option>
-            ) : null}
-          </NativeSelect>
+            onValueChange={setSemanticKey}
+            options={[
+              { value: '', label: t('learning.categoryNone') },
+              ...(candidate.field.semanticKey
+                ? [{ value: candidate.field.semanticKey, label: candidate.field.semanticKey }]
+                : []),
+            ]}
+          />
         </div>
         <p className="ufa:rounded-md ufa:bg-muted ufa:px-3 ufa:py-2 ufa:font-mono ufa:text-sm">
           {valueText}

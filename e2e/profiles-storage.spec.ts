@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 
-import { addAnswer, createProfile } from './support/data'
+import { addAnswer, chooseOption, createProfile } from './support/data'
 import { expect, test } from './support/fixtures'
 
 test.describe('profiles and saved answers', () => {
@@ -10,16 +10,15 @@ test.describe('profiles and saved answers', () => {
   }) => {
     const panel = await openExtensionPage('src/sidepanel/index.html')
     const selector = panel.getByRole('combobox', { name: 'Profile' })
-    await expect(selector).toHaveValue(/.+/)
-    await expect(selector.locator('option:checked')).toHaveText(/General/)
+    await expect(selector).toHaveText(/General/)
 
     await createProfile(panel, 'Backend roles', 'Software developer')
     await panel.getByRole('button', { name: 'Use Backend roles for filling' }).click()
-    await expect(selector.locator('option:checked')).toHaveText('Backend roles')
+    await expect(selector).toHaveText('Backend roles')
     await addAnswer(panel, 'Notice period', 'Two weeks')
 
     await panel.reload()
-    await expect(selector.locator('option:checked')).toHaveText('Backend roles')
+    await expect(selector).toHaveText('Backend roles')
     await panel.getByRole('tab', { name: 'Answers' }).click()
     await expect(panel.getByText('Notice period')).toBeVisible()
     await expect(panel.getByText('Two weeks')).toBeVisible()
@@ -42,20 +41,19 @@ test.describe('profiles and saved answers', () => {
     const options = await openExtensionPage('src/options/index.html')
     const panel = await openExtensionPage('src/sidepanel/index.html')
     const panelSelector = panel.getByRole('combobox', { name: 'Profile' })
-    await expect(panelSelector.locator('option:checked')).toHaveText(/General/)
+    const optionsSelector = options.getByRole('combobox', { name: 'Profile' })
+    await expect(panelSelector).toHaveText(/General/)
 
     await createProfile(options, 'QA roles', 'Software testing')
-    await options.getByRole('combobox', { name: 'Profile' }).selectOption({ label: 'QA roles' })
-    await expect(panelSelector.locator('option:checked')).toHaveText('QA roles')
+    await chooseOption(options, optionsSelector, 'QA roles')
+    await expect(panelSelector).toHaveText('QA roles')
 
     await addAnswer(panel, 'Preferred test framework', 'Playwright')
     await options.getByRole('tab', { name: 'Answers' }).click()
     await expect(options.getByText('Preferred test framework')).toBeVisible()
 
-    await panelSelector.selectOption({ label: 'General (Default)' })
-    await expect(
-      options.getByRole('combobox', { name: 'Profile' }).locator('option:checked'),
-    ).toHaveText('General (Default)')
+    await chooseOption(panel, panelSelector, 'General (Default)')
+    await expect(optionsSelector).toHaveText('General (Default)')
   })
 
   test('profile details save shared and role-specific answers', async ({ openExtensionPage }) => {
@@ -100,8 +98,9 @@ test.describe('profiles and saved answers', () => {
 
     await options.getByRole('tab', { name: 'Answers' }).click()
     await expect(options.getByText('Notice period')).toBeVisible()
-    await expect(options.getByRole('combobox', { name: 'Profile' }).getByRole('option')).toHaveText(
-      ['General (Default)', 'Backend roles'],
-    )
+    await options.getByRole('combobox', { name: 'Profile' }).click()
+    await expect(options.getByRole('option')).toHaveText(['General (Default)', 'Backend roles'])
+    await options.keyboard.press('Escape')
+    await expect(options.getByRole('listbox')).toBeHidden()
   })
 })

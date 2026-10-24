@@ -7,7 +7,8 @@ import { useAction, useStoreSnapshot } from '../../hooks/use-store'
 import { useTranslate } from '../../i18n/messages'
 import { Button } from '../ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
-import { Input, NativeSelect } from '../ui/form-controls'
+import { Input } from '../ui/form-controls'
+import { SimpleSelect } from '../ui/select'
 import {
   categoryLabel,
   categoryOptions,
@@ -172,17 +173,12 @@ function CustomFieldDialog({
         </FormField>
         <FormField label={t('editor.category')}>
           {(props) => (
-            <NativeSelect
+            <SimpleSelect
               {...props}
               value={category}
-              onChange={(event) => setCategory(event.target.value as AnswerCategory)}
-            >
-              {categoryOptions(t).map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </NativeSelect>
+              onValueChange={(next) => setCategory(next as AnswerCategory)}
+              options={categoryOptions(t)}
+            />
           )}
         </FormField>
         <ErrorMessage message={action.error} />
