@@ -14,8 +14,8 @@ afterEach(() => {
 })
 
 describe('extension tab driver', () => {
-  it('injects the runtime into all frames and pings it', async () => {
-    fake = createFakeChrome()
+  it('connects to the page itself before other frames', async () => {
+    fake = createFakeChrome({ hangAllFrames: true })
     const driver = createExtensionTabDriver({
       chrome: fake.chrome,
       contentScriptFile: 'form-autofill/content-script.js',
@@ -25,7 +25,7 @@ describe('extension tab driver', () => {
     expect(driver.tabId).toBe(7)
     expect(driver.frameIds).toEqual([0])
     expect(fake.injections[0]).toEqual({
-      target: { tabId: 7, allFrames: true },
+      target: { tabId: 7, frameIds: [0] },
       files: ['form-autofill/content-script.js'],
     })
   })

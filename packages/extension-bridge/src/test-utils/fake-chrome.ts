@@ -19,6 +19,8 @@ export interface FakeChromeOptions {
   tabs?: TabLike[]
   /** Error message thrown by executeScript, to simulate missing permissions. */
   injectError?: string
+  /** `allFrames` injection never settles, as a page full of slow embeds can. */
+  hangAllFrames?: boolean
 }
 
 /**
@@ -74,6 +76,7 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     scripting: {
       executeScript: async (injection) => {
         injections.push(injection)
+        if (options.hangAllFrames && injection.target.allFrames) return new Promise(() => undefined)
         if (options.injectError) throw new Error(options.injectError)
         runtime ??= installAutofillContentRuntime({
           port: {

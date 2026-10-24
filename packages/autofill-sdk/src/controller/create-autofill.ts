@@ -1,6 +1,7 @@
 import {
   AutofillError,
   createEventBus,
+  ensureExtensionSafeZod,
   silentLogger,
   toAutofillError,
   type AutofillSettings,
@@ -118,6 +119,7 @@ function countStates(matches: Record<string, MatchResult>): Record<string, numbe
  * browser extension APIs; everything environment-specific is injected through the configuration.
  */
 export function createAutofill(config: AutofillConfiguration): AutofillController {
+  ensureExtensionSafeZod()
   const logger = config.logger ?? silentLogger
   const now = config.now ?? Date.now
   const store = createStore<AutofillState>(INITIAL_STATE)

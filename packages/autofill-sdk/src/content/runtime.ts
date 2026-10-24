@@ -1,4 +1,4 @@
-import { toAutofillError, type FieldDetector } from '@ufa/core'
+import { ensureExtensionSafeZod, toAutofillError, type FieldDetector } from '@ufa/core'
 
 import { createDomPageDriver, type DomPageDriver } from '../dom/dom-page-driver'
 import {
@@ -68,6 +68,7 @@ async function handleRequest(driver: DomPageDriver, request: RuntimeRequest): Pr
 export function installAutofillContentRuntime(
   options: ContentRuntimeOptions,
 ): ContentRuntimeHandle {
+  ensureExtensionSafeZod()
   const scope = globalThis as RuntimeGlobal
   const existing = scope[GLOBAL_KEY]
   if (existing?.version === SDK_VERSION && existing.isConnected()) return existing

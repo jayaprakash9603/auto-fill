@@ -4,6 +4,7 @@ import {
   createDefaultSettings,
   createId as defaultCreateId,
   customSemanticKey,
+  ensureExtensionSafeZod,
   silentLogger,
   toAutofillError,
   type AnswerCategory,
@@ -189,6 +190,7 @@ function removeUndefined<T extends object>(value: T): T {
  * little as possible. Changes from other pages arrive through the adapter's `subscribe`.
  */
 export function createAutofillStore(options: AutofillStoreOptions): AutofillStore {
+  ensureExtensionSafeZod()
   const adapter = options.adapter
   const now = options.now ?? Date.now
   const createId = options.createId ?? defaultCreateId

@@ -91,6 +91,8 @@ export function createExtensionTabDriver(options: ExtensionTabDriverOptions): Ex
   let snapshotCounter = 0
   let detachChromeListeners: (() => void) | null = null
   let disposed = false
+  /** Resolves once embedded frames have been tried, so the first scan can include the fast ones. */
+  let otherFrames: Promise<void> = Promise.resolve()
 
   const rememberFrames = (fields: readonly FieldDescriptor[], frameId: number) => {
     for (const [id, owner] of fieldFrames) if (owner === frameId) fieldFrames.delete(id)
@@ -144,24 +146,78 @@ export function createExtensionTabDriver(options: ExtensionTabDriverOptions): Ex
   const withFrame = (fields: readonly FieldDescriptor[], frameId: number): FieldDescriptor[] =>
     fields.map((field) => ({ ...field, frameId }))
 
-  const inject = async (target: number, url: string | undefined): Promise<number[]> => {
-    const files = [options.contentScriptFile]
+  const files = [options.contentScriptFile]
+
+  /** The page's own document. Other frames must not delay this. */
+  const injectTopFrame = async (target: number, url: string | undefined): Promise<void> => {
     try {
-      const results =
-        (await chrome.scripting.executeScript({
-          target: { tabId: target, allFrames: true },
-          files,
-        })) ?? []
-      const ids = [...new Set(results.map((result) => result.frameId))]
-      return ids.length ? ids.sort((a, b) => a - b) : [0]
-    } catch (allFramesError) {
-      try {
-        await chrome.scripting.executeScript({ target: { tabId: target, frameIds: [0] }, files })
-        return [0]
-      } catch {
-        throw classifyInjectionError(allFramesError, url)
-      }
+      await chrome.scripting.executeScript({
+        target: { tabId: target, frameIds: [0] },
+        files,
+      })
+    } catch (error) {
+      throw classifyInjectionError(error, url)
     }
+  }
+
+  /**
+   * Embedded frames are attached after the top document is already usable. A page full of ads
+   * otherwise holds the panel on a blank "connecting" state until every frame answers.
+   */
+  const attachOtherFrames = (target: number) => {
+    let markReady: () => void = () => undefined
+    otherFrames = new Promise<void>((resolve) => {
+      markReady = resolve
+    })
+    void (async () => {
+      let reachable: number[] = []
+      try {
+        const results =
+          (await chrome.scripting.executeScript({
+            target: { tabId: target, allFrames: true },
+            files,
+          })) ?? []
+        const extra = [...new Set(results.map((result) => result.frameId))].filter((id) => id !== 0)
+        if (!disposed && tabId === target && extra.length > 0) {
+          const answered: number[] = []
+          await Promise.all(
+            extra.map(async (frameId) => {
+              try {
+                await send('ping', {}, frameId)
+                answered.push(frameId)
+              } catch {
+                // A frame that never starts a runtime is left out of the scan.
+              }
+            }),
+          )
+          reachable = answered
+          if (!disposed && tabId === target && reachable.length > 0)
+            frameIds = [...new Set([...frameIds, ...reachable])].sort((a, b) => a - b)
+        }
+      } catch {
+        // Embedded frames are optional. The top document is already connected.
+      } finally {
+        markReady()
+      }
+      if (disposed || tabId !== target || reachable.length === 0) return
+      const request = scanRequestSchema.parse({})
+      await Promise.all(
+        reachable.map(async (frameId) => {
+          try {
+            const result = await send('scan', { request }, frameId, scanTimeout)
+            if (disposed || tabId !== target) return
+            rememberFrames(result.fields, frameId)
+            emit({
+              type: 'fields-changed',
+              frameId,
+              fields: withFrame(result.fields, frameId),
+            })
+          } catch {
+            // The top document is already shown; one embedded frame can fail on its own.
+          }
+        }),
+      )
+    })()
   }
 
   const attachChromeListeners = () => {
@@ -246,30 +302,25 @@ export function createExtensionTabDriver(options: ExtensionTabDriverOptions): Ex
       fieldFrames.clear()
       attachChromeListeners()
 
-      const injected = await inject(tab.id, tab.url)
+      await injectTopFrame(tab.id, tab.url)
       throwIfAborted(signal)
-      const answers = await Promise.all(
-        injected.map((frameId) =>
-          send('ping', {}, frameId).then(
-            (page): [number, PageInfo] => [frameId, page],
-            () => null,
-          ),
-        ),
-      )
-      const reachable = answers.filter((entry): entry is [number, PageInfo] => entry !== null)
-      frameIds = reachable.map(([frameId]) => frameId)
-      const top = reachable.find(([frameId]) => frameId === 0) ?? reachable[0]
-      if (!top)
-        throw new AutofillError(
-          'CONTENT_UNAVAILABLE',
-          'The page runtime did not start. Reload the page and try again.',
-        )
-      return { ...top[1], frameCount: reachable.length }
+      let top: PageInfo
+      try {
+        top = await send('ping', {}, 0)
+      } catch (error) {
+        throw toAutofillError(error)
+      }
+      frameIds = [0]
+      attachOtherFrames(tab.id)
+      return { ...top, frameCount: 1 }
     },
     async scan(request, signal) {
       if (disposed) throw new AutofillError('DESTROYED', 'The tab driver was disposed.')
       if (tabId == null || frameIds.length === 0)
         throw new AutofillError('CONTENT_UNAVAILABLE', 'Connect to the page before scanning.')
+      // Fast embeds join this scan. A page that never finishes injecting does not hold the form.
+      await Promise.race([otherFrames, new Promise((resolve) => setTimeout(resolve, 400))])
+      throwIfAborted(signal)
       const normalized = scanRequestSchema.parse(request ?? {})
       const results = await Promise.all(
         frameIds.map((frameId) =>
