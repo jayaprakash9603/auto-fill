@@ -165,6 +165,12 @@ adapter detectors to the generic scanner, and delegates `fillField` when an adap
 Vendor adapters document limitations (for example Workday apply behind sign-in). Hosts can register
 more adapters on the controller `PluginRegistry`.
 
+## Theming
+
+Panel styles are scoped to `.ufa-root` (see [THEMING.md](./THEMING.md)). Hosts pass `cssVariableTheme()` or
+custom tokens to `AutofillPanel`. `AutofillRoot` supports optional **shadow DOM** isolation (`shadowDom` +
+`shadowStyles`) so host CSS cannot cross the boundary; overlays render inside the same shadow tree.
+
 ## Learning
 
 Learning is off until the user enables it in settings and arms capture for the connected page.

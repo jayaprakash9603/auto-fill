@@ -222,6 +222,16 @@ describe('controller matching', () => {
     await controller.destroy()
   })
 
+  it('rejects work after destroy and serializes fill operations', async () => {
+    const driver = createDomPageDriver({ observe: false })
+    const controller = createAutofill({ driver, storage: createMemoryStorage() })
+    await controller.connect()
+    await controller.destroy()
+    await expect(controller.connect()).rejects.toMatchObject({ code: 'DESTROYED' })
+    await expect(controller.fill()).rejects.toMatchObject({ code: 'DESTROYED' })
+    await controller.destroy()
+  })
+
   it('clears matches when the page goes away', async () => {
     const { controller } = await connected()
     expect(Object.keys(controller.getState().matches)).toHaveLength(4)

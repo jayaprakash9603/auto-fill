@@ -102,6 +102,7 @@ export {
 } from './i18n/messages'
 export { cn } from './lib/cn'
 export { PortalContainerContext, usePortalContainer } from './lib/portal'
+export { THEME_PRESETS, type ThemePresetName } from './theme/presets'
 export {
   createTheme,
   cssVariableTheme,

@@ -3,10 +3,12 @@
 ## Workspace
 
 ```bash
-pnpm verify          # lint, typecheck, unit tests, dependency graph, SDK build
+pnpm verify          # lint, typecheck, unit tests, deps, public API snapshot, builds
 pnpm test            # Vitest unit tests
-pnpm --filter @ufa/chrome-extension build:e2e
-pnpm e2e             # Playwright (extension + fixture forms)
+pnpm check:tree-shaking  # headless vs react SDK bundle boundaries
+pnpm verify:e2e      # build dist-e2e + Playwright
+pnpm ci:sdk          # release/sdk + consumer smoke + API snapshot
+pnpm ci:extension    # extension build + E2E
 ```
 
 E2E loads `apps/chrome-extension/dist-e2e`. Rebuild after UI or runtime changes.

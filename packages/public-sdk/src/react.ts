@@ -15,6 +15,7 @@ export {
   FillSettings,
   ProfileManager,
   ProfileSelector,
+  THEME_PRESETS,
   THEME_TOKEN_NAMES,
   useAutofillController,
   useAutofillState,
@@ -35,5 +36,6 @@ export {
   type CssVariableMapping,
   type Density,
   type MessageKey,
+  type ThemePresetName,
   type ThemeTokens,
 } from '@ufa/ui'

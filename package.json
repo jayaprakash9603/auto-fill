@@ -11,6 +11,9 @@
     "build": "pnpm build:package && pnpm --filter \"./apps/**\" build",
     "build:package": "pnpm --filter @universal-form-autofill/sdk build",
     "build:extension": "pnpm --filter @ufa/chrome-extension build",
+    "build:e2e": "pnpm --filter @ufa/chrome-extension build:e2e",
+    "check:api": "node scripts/check-public-api.mjs",
+    "check:tree-shaking": "node scripts/tree-shaking.mjs",
     "dev:extension": "pnpm --filter @ufa/chrome-extension dev",
     "test:package": "node scripts/smoke-sdk-consumer.mjs",
     "lint": "eslint .",
@@ -22,7 +25,10 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "changeset": "changeset",
-    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm check:deps && pnpm build"
+    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm check:tree-shaking && pnpm check:deps && pnpm check:api && pnpm build",
+    "verify:e2e": "pnpm build:e2e && pnpm e2e",
+    "ci:extension": "pnpm --filter @ufa/chrome-extension build && pnpm verify:e2e",
+    "ci:sdk": "pnpm build:package && pnpm test:package && pnpm check:api"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.3",
@@ -32,6 +38,7 @@
     "@types/chrome": "^0.3.6",
     "@types/node": "^24.13.3",
     "dependency-cruiser": "^18.7.0",
+    "esbuild": "^0.25.12",
     "eslint": "^10.13.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
