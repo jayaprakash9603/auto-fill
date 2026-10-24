@@ -14,6 +14,7 @@ export const defaultMessages = {
   'page.frame': '1 frame',
   'page.adapter': 'Portal: {name}',
   'page.runtime': 'Runtime {version}',
+  'page.none': 'Open a web page with a form to start',
   'permission.title': 'Allow access to this site',
   'permission.body':
     'Autofill needs permission to read the form on {site}. Access is limited to this site and you can revoke it at any time.',
@@ -62,6 +63,9 @@ export const defaultMessages = {
   'match.checked': 'Checked',
   'match.unchecked': 'Not checked',
   'match.summary': '{ready} ready · {review} to review · {missing} without an answer',
+  'match.stat.ready': 'Ready',
+  'match.stat.review': 'Review',
+  'match.stat.missing': 'Missing',
   'fill.select': 'Fill {label}',
   'fill.selectAll': 'Select all ready fields',
   'fill.selected': 'Fill selected ({count})',

@@ -52,7 +52,7 @@ test.describe('field detection', () => {
     const panel = await openExtensionPage('src/sidepanel/index.html', page)
     const list = panel.getByRole('region', { name: 'Detected fields' })
     // By the label's title: rows also say what the field was recognized as ("Recognized as Full name").
-    const label = (text: string) => list.locator(`li p[title="${text}"]`)
+    const label = (text: string) => list.locator(`li label[title="${text}"]`)
     await expect(label('Full name')).toBeVisible()
     await expect(label('Referrer name')).toHaveCount(0)
 

@@ -1,7 +1,7 @@
 import type { AutofillController, AutofillHost, AutofillState } from '@ufa/autofill-sdk'
 import { toAutofillError, type AutofillMode, type FillResult } from '@ufa/core'
 import type { AutofillStore } from '@ufa/storage'
-import { PlugZapIcon, RotateCwIcon, SearchXIcon } from 'lucide-react'
+import { PlugZapIcon, SearchXIcon } from 'lucide-react'
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
 
 import { useAutofillController, useAutofillState } from '../hooks/use-autofill'
@@ -20,7 +20,7 @@ import { canSelectField, FieldList, isPreselected } from './field-list'
 import { FillBar } from './fill-bar'
 import { ClearConfirmationDialog } from './clear-confirmation-dialog'
 import { LearningConfirmationDialog } from './learning-confirmation-dialog'
-import { ConnectionBadge, PortalStatus } from './portal-status'
+import { LiveConnection } from './portal-status'
 import { EmptyState, ErrorState, PermissionNotice, RestrictedPageState } from './states'
 import { Button } from './ui/button'
 import { Label, Switch } from './ui/form-controls'
@@ -77,8 +77,11 @@ export function AutofillPanel({
   )
 }
 
-const TAB_CONTENT =
-  'ufa:flex ufa:min-h-0 ufa:flex-1 ufa:flex-col ufa:gap-3 ufa:overflow-y-auto ufa:p-3'
+/** Scroll area of a tab; the stable gutter keeps the width fixed as content grows or shrinks. */
+const SCROLL_AREA =
+  'ufa:flex ufa:min-h-0 ufa:flex-1 ufa:flex-col ufa:gap-3 ufa:overflow-y-auto ufa:overscroll-contain ufa:p-3 ufa:[scrollbar-gutter:stable]'
+const TAB_CONTENT = SCROLL_AREA
+const PAGE_TAB_CONTENT = 'ufa:flex ufa:min-h-0 ufa:flex-1 ufa:flex-col'
 
 function PanelBody({
   host,
@@ -104,37 +107,26 @@ function PanelBody({
 
   return (
     <div className="ufa:flex ufa:min-h-0 ufa:flex-1 ufa:flex-col">
-      <header className="ufa:flex ufa:items-center ufa:gap-2 ufa:border-b ufa:border-border ufa:px-3 ufa:py-2">
+      <header className="ufa:flex ufa:shrink-0 ufa:flex-col ufa:gap-2 ufa:border-b ufa:border-border ufa:p-3">
         <h2
-          className={cn(
-            'ufa:flex-1 ufa:truncate ufa:text-sm ufa:font-semibold',
-            hideTitle && 'ufa:sr-only',
-          )}
+          className={cn('ufa:truncate ufa:text-sm ufa:font-semibold', hideTitle && 'ufa:sr-only')}
         >
           {t('panel.title')}
         </h2>
-        {hideTitle ? <span className="ufa:flex-1" aria-hidden /> : null}
-        <ConnectionBadge status={state.status} />
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={reconnect}
-          disabled={!controller || busy}
-          aria-label={t('panel.refresh')}
-          title={t('panel.refresh')}
-        >
-          <RotateCwIcon className={cn(busy && 'ufa:animate-spin')} />
-        </Button>
-      </header>
-      <div className="ufa:px-3 ufa:pt-2">
+        <LiveConnection
+          status={state.status}
+          page={state.page}
+          busy={!controller || busy}
+          onRefresh={reconnect}
+        />
         <ProfileSelector store={store} />
-      </div>
+      </header>
       <Tabs
         value={tab}
         onValueChange={(value) => setTab(value as AutofillPanelTab)}
-        className="ufa:min-h-0 ufa:flex-1 ufa:gap-0 ufa:pt-2"
+        className="ufa:min-h-0 ufa:flex-1 ufa:gap-0"
       >
-        <div className="ufa:px-3">
+        <div className="ufa:shrink-0 ufa:px-3 ufa:pt-2">
           <TabsList
             aria-label={t('tabs.label')}
             className="ufa:overflow-x-auto ufa:[scrollbar-width:none]"
@@ -146,7 +138,7 @@ function PanelBody({
             {settingsTab ? <TabsTrigger value="settings">{t('tabs.settings')}</TabsTrigger> : null}
           </TabsList>
         </div>
-        <TabsContent value="page" className={TAB_CONTENT}>
+        <TabsContent value="page" className={PAGE_TAB_CONTENT}>
           <PanelContent state={state} controller={controller} host={host} onReconnect={reconnect} />
         </TabsContent>
         <TabsContent value="answers" className={TAB_CONTENT}>
@@ -222,16 +214,27 @@ function PanelContent({
   host?: AutofillHost
   onReconnect: () => void
 }): ReactNode {
+  if (state.page && controller)
+    return <PageFields key={state.page.url} state={state} controller={controller} />
+  return (
+    <div className={SCROLL_AREA}>
+      <PageState state={state} host={host} onReconnect={onReconnect} />
+    </div>
+  )
+}
+
+function PageState({
+  state,
+  host,
+  onReconnect,
+}: {
+  state: AutofillState
+  host?: AutofillHost
+  onReconnect: () => void
+}): ReactNode {
   const t = useTranslate()
 
-  if (state.status === 'connecting' && !state.page) {
-    return (
-      <div className="ufa:flex ufa:items-center ufa:justify-center ufa:gap-2 ufa:py-8 ufa:text-sm ufa:text-muted-foreground">
-        <Spinner label={t('panel.connecting')} />
-        {t('panel.connecting')}
-      </div>
-    )
-  }
+  if (state.status === 'connecting' && !state.page) return <FieldListSkeleton />
 
   if (state.status === 'error' && state.error) {
     switch (state.error.code) {
@@ -261,20 +264,49 @@ function PanelContent({
     }
   }
 
-  if (state.page) {
-    return (
-      <>
-        <PortalStatus page={state.page} />
-        {controller ? (
-          <PageFields key={state.page.url} state={state} controller={controller} />
-        ) : (
-          <FieldList fields={state.fields} matches={state.matches} scanning={state.scanning} />
-        )}
-      </>
-    )
-  }
+  if (state.page)
+    return <FieldList fields={state.fields} matches={state.matches} scanning={state.scanning} />
 
   return <EmptyState icon={<PlugZapIcon />} title={t('status.idle')} />
+}
+
+/** Placeholder rows while the page connects, shaped like the field list that replaces them. */
+function FieldListSkeleton() {
+  const t = useTranslate()
+  return (
+    <div
+      data-slot="field-list-skeleton"
+      role="status"
+      aria-label={t('panel.connecting')}
+      className="ufa:flex ufa:flex-col ufa:gap-2"
+    >
+      <div className="ufa:grid ufa:grid-cols-3 ufa:gap-2" aria-hidden>
+        {[0, 1, 2].map((key) => (
+          <div
+            key={key}
+            className="ufa:h-12 ufa:rounded-md ufa:bg-muted ufa:motion-safe:animate-pulse"
+          />
+        ))}
+      </div>
+      <div
+        className="ufa:overflow-hidden ufa:rounded-md ufa:border ufa:border-border ufa:bg-card"
+        aria-hidden
+      >
+        {[0, 1, 2, 3].map((key) => (
+          <div
+            key={key}
+            className="ufa:flex ufa:items-center ufa:gap-3 ufa:border-b ufa:border-border ufa:px-3 ufa:py-3 ufa:last:border-b-0"
+          >
+            <div className="ufa:size-4 ufa:rounded-sm ufa:bg-muted ufa:motion-safe:animate-pulse" />
+            <div className="ufa:flex ufa:flex-1 ufa:flex-col ufa:gap-1.5">
+              <div className="ufa:h-3 ufa:w-2/5 ufa:rounded-sm ufa:bg-muted ufa:motion-safe:animate-pulse" />
+              <div className="ufa:h-2.5 ufa:w-3/5 ufa:rounded-sm ufa:bg-muted ufa:motion-safe:animate-pulse" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 /**
@@ -395,34 +427,62 @@ function PageFields({
   )
 
   const hasFields = state.fields.length > 0
+  const ready = hasFields && snapshot.status === 'ready'
   return (
     <>
-      {hasFields && snapshot.status === 'ready' ? (
-        <div
-          data-slot="learning-bar"
-          className="ufa:flex ufa:flex-wrap ufa:items-center ufa:gap-3 ufa:rounded-md ufa:border ufa:border-border ufa:bg-card ufa:p-2.5"
-        >
-          <Switch
-            id="learning-arm"
-            checked={state.learningArmed}
-            disabled={!snapshot.settings.learning.allowed}
-            onCheckedChange={(checked) => void controller.setLearningArmed(checked)}
-          />
-          <Label htmlFor="learning-arm" className="ufa:text-sm">
-            {t('learning.arm')}
-          </Label>
-          <p className="ufa:min-w-0 ufa:flex-1 ufa:text-xs ufa:text-muted-foreground">
-            {t('learning.armHint')}
+      <div className={SCROLL_AREA} data-slot="page-scroll">
+        <FieldList
+          fields={state.fields}
+          matches={state.matches}
+          decisions={state.decisions}
+          results={state.results}
+          {...(mode === 'suggest' ? {} : { selected, onSelectedChange: toggle })}
+          choices={choices}
+          onChoiceChange={choose}
+          answers={snapshot.answers}
+          scanning={state.scanning}
+          generated={state.generated}
+          clearResults={state.clearResults}
+        />
+        {ready ? (
+          <div
+            data-slot="learning-bar"
+            className="ufa:flex ufa:items-start ufa:gap-3 ufa:rounded-md ufa:border ufa:border-dashed ufa:border-border ufa:p-2.5"
+          >
+            <Switch
+              id="learning-arm"
+              className="ufa:mt-0.5"
+              checked={state.learningArmed}
+              disabled={!snapshot.settings.learning.allowed}
+              onCheckedChange={(checked) => void controller.setLearningArmed(checked)}
+            />
+            <div className="ufa:min-w-0 ufa:flex-1">
+              <Label htmlFor="learning-arm" className="ufa:text-sm">
+                {t('learning.arm')}
+              </Label>
+              <p className="ufa:text-xs ufa:text-muted-foreground">{t('learning.armHint')}</p>
+            </div>
+            {candidates.length > 0 ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                className="ufa:shrink-0"
+                onClick={() => setLearningId(candidates[0]!.id)}
+              >
+                {t('learning.review')} ({candidates.length})
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+        {ready && mode !== 'suggest' ? (
+          <p className="ufa:text-xs ufa:text-muted-foreground">
+            {t('fill.never')} {t('fill.consentHint')}
           </p>
-          {candidates.length > 0 ? (
-            <Button size="sm" variant="secondary" onClick={() => setLearningId(candidates[0]!.id)}>
-              {t('learning.review')} ({candidates.length})
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
-      {hasFields && snapshot.status === 'ready' ? (
+        ) : null}
+      </div>
+      {ready ? (
         <FillBar
+          className="ufa:shrink-0 ufa:rounded-none ufa:border-x-0 ufa:border-b-0 ufa:p-3 ufa:shadow-[0_-4px_12px_-8px_rgb(0_0_0/0.25)]"
           mode={mode}
           onModeChange={changeMode}
           selectedCount={selected.size}
@@ -439,19 +499,6 @@ function PageFields({
           message={message}
         />
       ) : null}
-      <FieldList
-        fields={state.fields}
-        matches={state.matches}
-        decisions={state.decisions}
-        results={state.results}
-        {...(mode === 'suggest' ? {} : { selected, onSelectedChange: toggle })}
-        choices={choices}
-        onChoiceChange={choose}
-        answers={snapshot.answers}
-        scanning={state.scanning}
-        generated={state.generated}
-        clearResults={state.clearResults}
-      />
       <ClearConfirmationDialog
         open={clearOpen}
         fieldCount={selected.size}

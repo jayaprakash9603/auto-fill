@@ -165,9 +165,20 @@ describe('AutofillPanel', () => {
     render(<AutofillPanel host={hostFor(driver)} />)
     expect(await screen.findByText('Apply for Engineer')).toBeInTheDocument()
     expect(screen.getByText('jobs.example.com')).toBeInTheDocument()
-    expect(screen.getByText('2 frames')).toBeInTheDocument()
-    expect(screen.getByText('Portal: Generic')).toBeInTheDocument()
+    const live = document.querySelector('[data-slot="live-connection"]')!
+    expect(live).toHaveTextContent('2 frames · Portal: Generic')
+    expect(live).toHaveAttribute('data-status', 'ready')
     expect(screen.getByText('Connected')).toBeInTheDocument()
+  })
+
+  it('shows only the active tab, so it fills the panel', async () => {
+    const driver = fakeDriver(async () => PAGE)
+    render(<AutofillPanel host={hostFor(driver)} />)
+    await screen.findByText('Apply for Engineer')
+    const panels = document.querySelectorAll('[data-slot="tabs-content"]')
+    const shown = [...panels].filter((panel) => getComputedStyle(panel).display !== 'none')
+    expect(panels.length).toBeGreaterThan(1)
+    expect(shown).toHaveLength(1)
   })
 
   it('destroys the controller it created on unmount, also under StrictMode', async () => {

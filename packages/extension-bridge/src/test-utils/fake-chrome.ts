@@ -116,6 +116,12 @@ export function createFakeChrome(options: FakeChromeOptions = {}) {
     get runtime() {
       return runtime
     },
+    /** Drops the page runtime, as a full page load does. */
+    unloadRuntime() {
+      runtime?.dispose()
+      runtime = null
+      contentListeners.clear()
+    },
     cleanup() {
       runtime?.dispose()
       runtime = null

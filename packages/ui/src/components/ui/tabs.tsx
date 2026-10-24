@@ -43,7 +43,7 @@ export function TabsContent({ className, ...props }: ComponentProps<typeof TabsP
   return (
     <TabsPrimitive.Content
       data-slot="tabs-content"
-      className={cn('ufa:outline-none', className)}
+      className={cn('ufa:outline-none', className, 'ufa:data-[state=inactive]:hidden')}
       {...props}
     />
   )

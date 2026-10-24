@@ -1,4 +1,4 @@
-import {
+﻿import {
   createRequest,
   isProtocolMessage,
   readResponse,
@@ -66,13 +66,18 @@ function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout: () => Error)
   })
 }
 
+function withoutHash(url: string): string {
+  const index = url.indexOf('#')
+  return index === -1 ? url : url.slice(0, index)
+}
+
 /**
  * Page driver for extension pages (side panel, popup, options). Injects the runtime into the
  * target tab on demand, talks to every reachable frame, and forwards runtime events.
  */
 export function createExtensionTabDriver(options: ExtensionTabDriverOptions): ExtensionTabDriver {
   const { chrome } = options
-  const pingTimeout = options.pingTimeoutMs ?? 2_500
+  const pingTimeout = options.pingTimeoutMs ?? 5_000
   const scanTimeout = options.scanTimeoutMs ?? 10_000
   const fillTimeout = options.fillTimeoutMs ?? 60_000
   const listeners = new Set<(event: PageEvent) => void>()
@@ -122,6 +127,20 @@ export function createExtensionTabDriver(options: ExtensionTabDriverOptions): Ex
     return readResponse(type, raw)
   }
 
+  /** False only when no runtime listens in the top frame; a slow answer still counts as alive. */
+  const runtimeAlive = async (): Promise<boolean> => {
+    if (tabId == null) return false
+    try {
+      readResponse(
+        'ping',
+        await chrome.tabs.sendMessage(tabId, createRequest('ping', {} as never), { frameId: 0 }),
+      )
+      return true
+    } catch {
+      return false
+    }
+  }
+
   const withFrame = (fields: readonly FieldDescriptor[], frameId: number): FieldDescriptor[] =>
     fields.map((field) => ({ ...field, frameId }))
 
@@ -168,10 +187,18 @@ export function createExtensionTabDriver(options: ExtensionTabDriverOptions): Ex
     ) => {
       if (updatedTabId !== tabId) return
       if (change.url && change.url !== tabUrl) {
+        const previous = tabUrl
         tabUrl = change.url
-        emit({ type: 'navigated', url: change.url })
+        if (!previous || withoutHash(previous) !== withoutHash(change.url))
+          emit({ type: 'navigated', url: change.url })
       } else if (change.status === 'complete') {
-        emit({ type: 'navigated', url: tab.url ?? tabUrl ?? '' })
+        // Subframes loading (ads, embeds, lazy content) also flip the tab status, so only a
+        // top document whose runtime no longer answers counts as a new page.
+        const checkedTab = updatedTabId
+        void runtimeAlive().then((alive) => {
+          if (!alive && tabId === checkedTab)
+            emit({ type: 'navigated', url: tab.url ?? tabUrl ?? '' })
+        })
       }
     }
     const onActivated = (info: { tabId: number }) => {

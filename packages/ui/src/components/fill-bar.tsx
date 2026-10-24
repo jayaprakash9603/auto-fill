@@ -87,70 +87,74 @@ export function FillBar({
         />
         <p
           id={`${modeId}-hint`}
-          className="ufa:min-w-0 ufa:flex-1 ufa:text-xs ufa:text-muted-foreground"
+          className="ufa:line-clamp-2 ufa:min-w-0 ufa:flex-1 ufa:text-xs ufa:text-muted-foreground"
+          title={t(`mode.${mode}Hint`)}
         >
           {t(`mode.${mode}Hint`)}
         </p>
       </div>
 
       {mode === 'suggest' ? null : (
-        <div className="ufa:flex ufa:flex-wrap ufa:items-center ufa:gap-2">
-          <Button
-            size="sm"
-            onClick={onFill}
-            disabled={filling || selectedCount === 0}
-            aria-busy={filling || undefined}
-          >
-            {filling ? <Spinner label={t('fill.filling')} /> : <WandSparklesIcon />}
-            {filling ? t('fill.filling') : t('fill.selected', { count: selectedCount })}
-          </Button>
-          {onSelectAll && selectableCount > selectedCount ? (
-            <Button size="sm" variant="ghost" onClick={onSelectAll} disabled={filling}>
-              <ListChecksIcon />
-              {t('fill.selectAll')}
-            </Button>
-          ) : null}
-          {canUndo && onUndo ? (
-            <Button size="sm" variant="outline" onClick={onUndo} disabled={filling}>
-              <Undo2Icon />
-              {t('fill.undo')}
-            </Button>
-          ) : null}
-          {syntheticEnabled && onGenerate ? (
+        <>
+          <div className="ufa:flex ufa:items-center ufa:gap-2">
             <Button
-              size="sm"
-              variant="outline"
-              onClick={onGenerate}
+              className="ufa:min-w-0 ufa:flex-1"
+              onClick={onFill}
               disabled={filling || selectedCount === 0}
+              aria-busy={filling || undefined}
             >
-              {t('fill.generate', { count: selectedCount })}
+              {filling ? <Spinner label={t('fill.filling')} /> : <WandSparklesIcon />}
+              {filling ? t('fill.filling') : t('fill.selected', { count: selectedCount })}
             </Button>
+            {canUndo && onUndo ? (
+              <Button variant="outline" onClick={onUndo} disabled={filling}>
+                <Undo2Icon />
+                {t('fill.undo')}
+              </Button>
+            ) : null}
+          </div>
+          {(onSelectAll && selectableCount > selectedCount) ||
+          (syntheticEnabled && onGenerate) ||
+          onClear ? (
+            <div className="ufa:flex ufa:flex-wrap ufa:items-center ufa:gap-1.5">
+              {onSelectAll && selectableCount > selectedCount ? (
+                <Button size="sm" variant="ghost" onClick={onSelectAll} disabled={filling}>
+                  <ListChecksIcon />
+                  {t('fill.selectAll')}
+                </Button>
+              ) : null}
+              {syntheticEnabled && onGenerate ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={onGenerate}
+                  disabled={filling || selectedCount === 0}
+                >
+                  {t('fill.generate', { count: selectedCount })}
+                </Button>
+              ) : null}
+              {onClear ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={onClear}
+                  disabled={filling || selectedCount === 0}
+                >
+                  {t('fill.clear', { count: selectedCount })}
+                </Button>
+              ) : null}
+            </div>
           ) : null}
-          {onClear ? (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onClear}
-              disabled={filling || selectedCount === 0}
-            >
-              {t('fill.clear', { count: selectedCount })}
-            </Button>
-          ) : null}
-        </div>
+        </>
       )}
 
       <p
         data-slot="fill-status"
         role="status"
-        className={cn('ufa:text-xs ufa:text-muted-foreground', !status && 'ufa:sr-only')}
+        className={cn('ufa:text-xs ufa:font-medium ufa:text-foreground', !status && 'ufa:sr-only')}
       >
         {status}
       </p>
-      {mode === 'suggest' ? null : (
-        <p className="ufa:text-xs ufa:text-muted-foreground">
-          {t('fill.never')} {t('fill.consentHint')}
-        </p>
-      )}
     </div>
   )
 }

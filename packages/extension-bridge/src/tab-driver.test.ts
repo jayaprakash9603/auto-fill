@@ -100,6 +100,32 @@ describe('extension tab driver', () => {
     expect(fake.events.onMessage.size()).toBe(0)
   })
 
+  it('ignores subframe loads and hash changes, but reports a reloaded document', async () => {
+    fake = createFakeChrome()
+    const driver = createExtensionTabDriver({ chrome: fake.chrome, contentScriptFile: 'cs.js' })
+    const listener = vi.fn()
+    driver.subscribe(listener)
+    await driver.connect()
+
+    fake.events.onUpdated.fire(7, { url: 'https://jobs.example.com/apply#section-2' }, { id: 7 })
+    fake.events.onUpdated.fire(7, { status: 'complete' }, { id: 7 })
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(listener).not.toHaveBeenCalled()
+
+    fake.unloadRuntime()
+    fake.events.onUpdated.fire(
+      7,
+      { status: 'complete' },
+      { id: 7, url: 'https://jobs.example.com/apply' },
+    )
+    await vi.waitFor(() =>
+      expect(listener).toHaveBeenCalledExactlyOnceWith({
+        type: 'navigated',
+        url: 'https://jobs.example.com/apply',
+      }),
+    )
+  })
+
   it('scans reachable frames and tags fields and change events with their frame', async () => {
     document.body.innerHTML = '<label for="x">Email</label><input id="x" type="email" />'
     fake = createFakeChrome()
@@ -227,7 +253,10 @@ describe('extension tab driver', () => {
       expect(
         requests
           .filter(({ request }) => request.type === 'restore')
-          .map(({ frameId, request }) => [frameId, request.type === 'restore' && request.snapshotId]),
+          .map(({ frameId, request }) => [
+            frameId,
+            request.type === 'restore' && request.snapshotId,
+          ]),
       ).toEqual([
         [0, 'snap-0'],
         [2, 'snap-2'],

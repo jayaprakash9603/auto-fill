@@ -225,28 +225,35 @@ export function FieldList({
       aria-busy={scanning}
       className={cn('ufa:flex ufa:min-w-0 ufa:flex-col ufa:gap-2', className)}
     >
-      <div className="ufa:flex ufa:items-center ufa:gap-2">
+      <div className="ufa:flex ufa:h-6 ufa:items-center ufa:gap-2">
         <h3 id={headingId} className="ufa:flex-1 ufa:text-sm ufa:font-semibold">
           {t('fields.title')}
         </h3>
-        {scanning ? (
-          <span className="ufa:flex ufa:items-center ufa:gap-1.5 ufa:text-xs ufa:text-muted-foreground">
+        <span className="ufa:flex ufa:items-center ufa:gap-1.5 ufa:text-xs ufa:text-muted-foreground ufa:tabular-nums">
+          <span
+            className={cn('ufa:flex ufa:size-3.5 ufa:items-center', !scanning && 'ufa:invisible')}
+          >
             <Spinner label={t('fields.scanning')} />
-            {t('fields.scanning')}
           </span>
-        ) : (
-          <span className="ufa:text-xs ufa:text-muted-foreground">
+          <span>
             {fields.length === 1
               ? t('fields.countOne')
               : t('fields.count', { count: fields.length })}
           </span>
-        )}
+        </span>
       </div>
 
       {summary.total > 0 ? (
-        <p data-slot="match-summary" className="ufa:text-xs ufa:text-muted-foreground">
-          {t('match.summary', summary)}
-        </p>
+        <>
+          <p data-slot="match-summary" className="ufa:sr-only">
+            {t('match.summary', summary)}
+          </p>
+          <div className="ufa:grid ufa:grid-cols-3 ufa:gap-2" aria-hidden>
+            <SummaryStat value={summary.ready} label={t('match.stat.ready')} tone="success" />
+            <SummaryStat value={summary.review} label={t('match.stat.review')} tone="warning" />
+            <SummaryStat value={summary.missing} label={t('match.stat.missing')} tone="muted" />
+          </div>
+        </>
       ) : null}
 
       {fields.length === 0 && !scanning ? (
@@ -261,6 +268,34 @@ export function FieldList({
         <FieldGroupSection key={group.key} group={group} context={context} />
       ))}
     </section>
+  )
+}
+
+const STAT_TONES = {
+  success: 'ufa:bg-success',
+  warning: 'ufa:bg-warning',
+  muted: 'ufa:bg-muted-foreground/50',
+} as const
+
+function SummaryStat({
+  value,
+  label,
+  tone,
+}: {
+  value: number
+  label: string
+  tone: keyof typeof STAT_TONES
+}) {
+  return (
+    <div className="ufa:flex ufa:min-w-0 ufa:flex-col ufa:gap-0.5 ufa:rounded-md ufa:border ufa:border-border ufa:bg-card ufa:px-2.5 ufa:py-2">
+      <span className="ufa:text-base ufa:leading-5 ufa:font-semibold ufa:tabular-nums">
+        {value}
+      </span>
+      <span className="ufa:flex ufa:min-w-0 ufa:items-center ufa:gap-1.5 ufa:text-xs ufa:text-muted-foreground">
+        <span className={cn('ufa:size-1.5 ufa:shrink-0 ufa:rounded-full', STAT_TONES[tone])} />
+        <span className="ufa:truncate">{label}</span>
+      </span>
+    </div>
   )
 }
 
@@ -300,6 +335,7 @@ function FieldGroupSection({ group, context }: { group: FieldGroup; context: Row
 function FieldRow({ field, context }: { field: FieldDescriptor; context: RowContext }) {
   const t = useTranslate()
   const choiceId = useId()
+  const checkboxId = useId()
   const match = context.matches[field.id]
   const decision = context.decisions[field.id]
   const result = context.results[field.id]
@@ -361,10 +397,14 @@ function FieldRow({ field, context }: { field: FieldDescriptor; context: RowCont
       data-match-state={match?.state}
       data-decision={decision?.action}
       data-fill-status={result?.status}
-      className="ufa:flex ufa:items-start ufa:gap-2 ufa:px-3 ufa:py-2"
+      className={cn(
+        'ufa:flex ufa:items-start ufa:gap-2.5 ufa:px-3 ufa:py-2.5 ufa:transition-colors',
+        isSelected && 'ufa:bg-primary/5',
+      )}
     >
       {context.selected ? (
         <Checkbox
+          id={checkboxId}
           className="ufa:mt-0.5"
           checked={isSelected}
           disabled={!selectable}
@@ -373,9 +413,18 @@ function FieldRow({ field, context }: { field: FieldDescriptor; context: RowCont
         />
       ) : null}
       <div className="ufa:min-w-0 ufa:flex-1">
-        <p className="ufa:truncate ufa:text-sm" title={field.label}>
+        <label
+          {...(context.selected && selectable ? { htmlFor: checkboxId } : {})}
+          className={cn(
+            'ufa:block ufa:truncate ufa:text-sm ufa:font-medium',
+            context.selected && selectable && 'ufa:cursor-pointer',
+          )}
+          title={field.label}
+        >
           {field.label || (
-            <span className="ufa:text-muted-foreground ufa:italic">{t('fields.unlabeled')}</span>
+            <span className="ufa:font-normal ufa:text-muted-foreground ufa:italic">
+              {t('fields.unlabeled')}
+            </span>
           )}
           {field.required ? (
             <>
@@ -385,21 +434,26 @@ function FieldRow({ field, context }: { field: FieldDescriptor; context: RowCont
               <span className="ufa:sr-only">{` (${t('fields.required')})`}</span>
             </>
           ) : null}
+        </label>
+        <p className="ufa:truncate ufa:text-xs ufa:text-muted-foreground">
+          <span>{details.join(' · ')}</span>
+          {field.semanticKey ? (
+            <>
+              {' · '}
+              <span title={field.semanticReason ?? undefined}>
+                {t('match.recognized', { key: semanticKeyLabel(field.semanticKey) })}
+              </span>
+            </>
+          ) : null}
         </p>
-        <p className="ufa:truncate ufa:text-xs ufa:text-muted-foreground">{details.join(' · ')}</p>
-        {field.semanticKey ? (
-          <p
-            className="ufa:truncate ufa:text-xs ufa:text-muted-foreground"
-            title={field.semanticReason ?? undefined}
-          >
-            {t('match.recognized', { key: semanticKeyLabel(field.semanticKey) })}
-          </p>
-        ) : null}
         {field.unsupportedReason ? (
           <p className="ufa:text-xs ufa:text-muted-foreground">{field.unsupportedReason}</p>
         ) : null}
         {proposed !== null ? (
-          <div data-slot="match-proposal" className="ufa:mt-1 ufa:flex ufa:flex-col ufa:gap-0.5">
+          <div
+            data-slot="match-proposal"
+            className="ufa:mt-1.5 ufa:flex ufa:flex-col ufa:gap-0.5 ufa:rounded-md ufa:bg-muted/60 ufa:px-2 ufa:py-1.5"
+          >
             <p className="ufa:flex ufa:min-w-0 ufa:items-baseline ufa:gap-1 ufa:text-xs">
               <span className="ufa:sr-only">
                 {`${generated ? t('match.generated') : t('match.proposed')}: `}
