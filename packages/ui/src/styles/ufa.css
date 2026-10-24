@@ -119,7 +119,7 @@
     --ufa-font-size: var(--ufa-d-font-size);
     --ufa-spacing-unit: var(--ufa-d-spacing-unit);
 
-    color-scheme: light;
+    color-scheme: inherit;
     color: var(--ufa-foreground);
     font-family: var(--ufa-font-family);
     font-size: var(--ufa-font-size);
@@ -152,6 +152,10 @@
     --ufa-d-input: #334155;
     --ufa-d-ring: #60a5fa;
     color-scheme: dark;
+  }
+
+  :where(.ufa-root[data-ufa-scheme='light']) {
+    color-scheme: light;
   }
 
   :where(.ufa-root[data-ufa-density='compact']) {

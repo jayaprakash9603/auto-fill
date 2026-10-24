@@ -17,6 +17,7 @@ knowledge lives in adapters, and field meaning comes from a semantic catalog tha
 | `packages/field-detection`  | DOM scanner: detector plugins, label resolution, section context, visibility, stable field ids, mutation observer (see FIELD_DETECTION.md)  |
 | `packages/matching-engine`  | Field classification, the ordered matching strategies, confidence, option and value conversion (see Matching below)                         |
 | `packages/form-actions`     | Policy evaluation, fill/clear/restore execution, per-control adapters, post-fill verification and undo snapshots (see Filling below)        |
+| `packages/learning-engine`  | Opt-in capture policy, value conversion, dedupe against saved answers (see Learning below)                                                  |
 | `packages/storage`          | The profiles-and-answers store, migrations, import/export, and adapters: memory, `chrome.storage`, IndexedDB, host-provided (DATA_MODEL.md) |
 | `packages/autofill-sdk`     | Headless controller (`createAutofill`), the page runtime, the DOM page driver and the `ufa/v1` message protocol                             |
 | `packages/extension-bridge` | Extension-page host: resolves the target tab, injects the runtime, proxies the page driver over `chrome.runtime` messaging                  |
@@ -24,7 +25,7 @@ knowledge lives in adapters, and field meaning comes from a semantic catalog tha
 | `packages/public-sdk`       | The published facade. Bundles everything above into `release/sdk`                                                                           |
 | `apps/chrome-extension`     | The standalone MV3 extension                                                                                                                |
 
-Later phases add `learning-engine`, `synthetic-data` and `portal-adapters` packages, plus
+Later phases add `synthetic-data` and `portal-adapters` packages, plus
 `apps/demo-host-extension`, which may only import the public package.
 
 ### Dependency direction
@@ -38,11 +39,13 @@ flowchart BT
   detection[field-detection] --> core
   matching[matching-engine] --> core
   actions[form-actions] --> core
+  learning[learning-engine] --> core
   storage --> core
   autofillSdk[autofill-sdk] --> core
   autofillSdk --> detection
   autofillSdk --> matching
   autofillSdk --> actions
+  autofillSdk --> learning
   autofillSdk --> storage
   bridge[extension-bridge] --> autofillSdk
   bridge --> storage
@@ -147,6 +150,16 @@ activation with keyboard fallbacks), verifies the value stuck, and records an un
 driver groups operations by frame, runs frames in order, and rewrites per-frame snapshot ids into one
 combined id for `restore`. Fill and undo are serialized through the controller queue; events such as
 `fill:complete` and `restore:complete` carry ids and statuses only, never profile values.
+
+## Learning
+
+Learning is off until the user enables it in settings and arms capture for the connected page.
+While armed, the page runtime watches user `input` and `change` events (debounced), ignores the
+autofill UI, and emits `field-input` for supported, non-protected fields that still lack a saved
+answer. The controller turns those into `LearningCandidate` records, deduped against existing
+answers, and the panel opens `LearningConfirmationDialog` so the user can edit the label, aliases,
+category and context before saving. Saved answers use `source: 'learned'` and never include
+passwords, consent or other prohibited fields.
 
 `AutofillHost` is what a UI needs from its environment: `createController()` plus an optional
 `requestPageAccess()` that must be called from a user gesture. `createExtensionAutofillHost` builds one

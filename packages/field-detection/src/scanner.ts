@@ -50,6 +50,8 @@ export interface FieldScanner {
    * control at that id no longer matches `expectedFingerprint`.
    */
   resolve(fieldId: string, expectedFingerprint?: string): ScannedField
+  /** The field that owns `element`, using the latest scan snapshot. */
+  findForElement(element: Element): ScannedField | null
   /** Open shadow roots found by the last scan; observers watch them too. */
   readonly shadowRoots: readonly ShadowRoot[]
 }
@@ -114,6 +116,8 @@ export function createFieldScanner(options: FieldScannerOptions): FieldScanner {
     return found
   }
 
+  let lastTargets: ScannedField[] = []
+
   const scanTargets = (request?: ScanRequestInput): ScannedField[] => {
     const { includeHidden, includeDisabled } = scanRequestSchema.parse(request ?? {})
     const index = indexTree(doc)
@@ -155,6 +159,7 @@ export function createFieldScanner(options: FieldScannerOptions): FieldScanner {
       members: entry.members,
     }))
     identity.prune()
+    lastTargets = targets
     return targets
   }
 
@@ -170,6 +175,17 @@ export function createFieldScanner(options: FieldScannerOptions): FieldScanner {
         throw new AutofillError('FIELD_CHANGED', 'The field changed since it was scanned.')
       }
       return target
+    },
+    findForElement(element) {
+      const targets =
+        lastTargets.length > 0
+          ? lastTargets
+          : scanTargets({ includeHidden: true, includeDisabled: true })
+      return (
+        targets.find(
+          (entry) => entry.element === element || entry.members.some((member) => member === element),
+        ) ?? null
+      )
     },
     get shadowRoots() {
       return shadowRoots

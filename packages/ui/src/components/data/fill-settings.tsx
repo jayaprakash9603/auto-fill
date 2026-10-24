@@ -99,6 +99,18 @@ export function FillSettings({ store, currentSite, className }: FillSettingsProp
 
       <div className="ufa:flex ufa:items-start ufa:gap-3">
         <Switch
+          id={`${ids.hint}-learning`}
+          checked={settings.learning.allowed}
+          onCheckedChange={(checked) => update({ learning: { allowed: checked } })}
+        />
+        <div className="ufa:flex ufa:flex-col ufa:gap-0.5">
+          <Label htmlFor={`${ids.hint}-learning`}>{t('settings.learning')}</Label>
+          <p className="ufa:text-xs ufa:text-muted-foreground">{t('settings.learningHint')}</p>
+        </div>
+      </div>
+
+      <div className="ufa:flex ufa:items-start ufa:gap-3">
+        <Switch
           id={ids.overwrite}
           checked={settings.overwriteExisting}
           onCheckedChange={(checked) => update({ overwriteExisting: checked })}

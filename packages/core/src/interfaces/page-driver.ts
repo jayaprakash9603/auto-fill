@@ -29,6 +29,8 @@ export interface PageDriver {
   fill(operations: readonly FillOperationInput[], signal?: AbortSignal): Promise<FillResult[]>
   /** Puts back the values a fill replaced, unless the user changed the field since. */
   restore(snapshotId: string, signal?: AbortSignal): Promise<RestoreResult[]>
+  /** When armed, user edits on unmatched fields emit `field-input` events. */
+  setLearningArmed(armed: boolean, signal?: AbortSignal): Promise<void>
   subscribe(listener: (event: PageEvent) => void): () => void
   dispose(): Promise<void>
 }

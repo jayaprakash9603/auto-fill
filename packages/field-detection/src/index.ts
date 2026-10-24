@@ -19,3 +19,4 @@ export {
   type FieldObserverOptions,
 } from './observer'
 export { fieldsSignature } from './signature'
+export { IGNORED_REGION_SELECTOR, isInIgnoredRegion } from './dom'

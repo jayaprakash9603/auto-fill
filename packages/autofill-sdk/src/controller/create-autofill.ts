@@ -12,6 +12,12 @@ import {
   type PolicyDecision,
   type RestoreResult,
 } from '@ufa/core'
+import {
+  buildLearningCandidate,
+  fieldValueToAnswerValue,
+  findDuplicateAnswerId,
+  shouldCaptureLearning,
+} from '@ufa/learning-engine'
 import { evaluatePolicies } from '@ufa/form-actions'
 import {
   BUILTIN_STRATEGIES,
@@ -23,6 +29,8 @@ import {
 import { createAutofillStore, type StoreSnapshot } from '@ufa/storage'
 
 import { createStore } from './store'
+import type { AnswerDraft } from '@ufa/storage'
+
 import type {
   AutofillConfiguration,
   AutofillController,
@@ -42,6 +50,8 @@ const INITIAL_STATE: AutofillState = {
   filling: false,
   canUndo: false,
   scannedAt: null,
+  learningArmed: false,
+  learningCandidates: {},
 }
 
 /** State of a page the controller no longer knows anything about. */
@@ -51,6 +61,8 @@ const NO_PAGE_DATA = {
   decisions: {},
   results: {},
   canUndo: false,
+  learningArmed: false,
+  learningCandidates: {},
 } satisfies Partial<AutofillState>
 
 function compareFields(a: FieldDescriptor, b: FieldDescriptor): number {
@@ -190,6 +202,7 @@ export function createAutofill(config: AutofillConfiguration): AutofillControlle
   const forgetPage = () => {
     detected = []
     undoSnapshotId = null
+    store.setState({ learningArmed: false, learningCandidates: {} })
   }
 
   const fail = (error: unknown, operation: string) => {
@@ -454,10 +467,72 @@ export function createAutofill(config: AutofillConfiguration): AutofillControlle
         forgetPage()
         store.setState({ status: 'idle', page: null, ...NO_PAGE_DATA, scanning: false })
         break
-      case 'field-input':
+      case 'field-input': {
+        const current = store.getState()
+        if (!current.learningArmed || current.status !== 'ready') return
+        const snapshot = data.getSnapshot()
+        if (!snapshot.settings.learning.allowed) return
+        const match = current.matches[event.field.id]
+        if (
+          shouldCaptureLearning({
+            field: event.field,
+            match,
+            value: event.value,
+            learningAllowed: true,
+          })
+        )
+          return
+        const answerValue = fieldValueToAnswerValue(event.field, event.value)
+        if (!answerValue) return
+        const duplicateOfAnswerId = findDuplicateAnswerId(
+          event.field,
+          answerValue,
+          snapshot.answers,
+        )
+        const candidate = buildLearningCandidate({
+          site: current.page?.hostname ?? '',
+          field: event.field,
+          value: answerValue,
+          capturedAt: now(),
+          duplicateOfAnswerId,
+        })
+        store.setState({
+          learningCandidates: { ...current.learningCandidates, [candidate.id]: candidate },
+        })
+        events.emit({ type: 'learning:candidate', candidateId: candidate.id })
         break
+      }
     }
   })
+
+  const setLearningArmed = async (armed: boolean): Promise<void> => {
+    requireReady()
+    await config.driver.setLearningArmed(armed)
+    store.setState({ learningArmed: armed, ...(armed ? {} : { learningCandidates: {} }) })
+  }
+
+  const confirmLearning = async (candidateId: string, draft: AnswerDraft): Promise<string> => {
+    const candidate = store.getState().learningCandidates[candidateId]
+    if (!candidate) throw new AutofillError('FIELD_NOT_FOUND', 'This learning suggestion is gone.')
+    const saved = await data.answers.create(
+      { ...draft, value: draft.value ?? candidate.value, source: 'learned' },
+      { allowDuplicate: true },
+    )
+    const rest = { ...store.getState().learningCandidates }
+    delete rest[candidateId]
+    store.setState({ learningCandidates: rest })
+    events.emit({ type: 'learning:saved', candidateId, answerId: saved.answer.id })
+    await runScan()
+    return saved.answer.id
+  }
+
+  const rejectLearning = (candidateId: string): void => {
+    const rest = { ...store.getState().learningCandidates }
+    if (!rest[candidateId]) return
+    delete rest[candidateId]
+    store.setState({ learningCandidates: rest })
+    events.emit({ type: 'learning:rejected', candidateId })
+  }
 
   return {
     store: data,
@@ -468,6 +543,9 @@ export function createAutofill(config: AutofillConfiguration): AutofillControlle
     scan,
     fill,
     undo,
+    setLearningArmed,
+    confirmLearning,
+    rejectLearning,
     async destroy() {
       if (destroyed) return
       destroyed = true

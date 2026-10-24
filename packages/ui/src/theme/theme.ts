@@ -150,6 +150,7 @@ const SHADCN_VARIABLES: CssVariableMapping = {
   accent: '--accent',
   accentForeground: '--accent-foreground',
   destructive: '--destructive',
+  destructiveForeground: '--destructive-foreground',
   border: '--border',
   input: '--input',
   ring: '--ring',

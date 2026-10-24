@@ -48,11 +48,19 @@ export interface RestoreRequestMessage {
   type: 'restore'
   snapshotId: string
 }
+export interface SetLearningRequestMessage {
+  channel: typeof PROTOCOL_CHANNEL
+  kind: 'request'
+  requestId: string
+  type: 'set-learning'
+  armed: boolean
+}
 export type RuntimeRequest =
   | PingRequest
   | ScanRequestMessage
   | FillRequestMessage
   | RestoreRequestMessage
+  | SetLearningRequestMessage
 export type RuntimeRequestType = RuntimeRequest['type']
 
 export interface RuntimeResponseDataMap {
@@ -60,6 +68,7 @@ export interface RuntimeResponseDataMap {
   scan: ScanResult
   fill: FillResult[]
   restore: RestoreResult[]
+  'set-learning': null
 }
 export type RuntimeResponseData<T extends RuntimeRequestType> = RuntimeResponseDataMap[T]
 
@@ -93,6 +102,7 @@ export const runtimeRequestSchema = z.discriminatedUnion('type', [
     operations: z.array(fillOperationSchema).max(MAX_OPERATIONS),
   }),
   z.object({ ...requestBase, type: z.literal('restore'), snapshotId: z.string().min(1).max(100) }),
+  z.object({ ...requestBase, type: z.literal('set-learning'), armed: z.boolean() }),
 ])
 
 /** Response payload schemas, validated by the caller so a compromised page cannot inject shapes. */
@@ -101,6 +111,7 @@ export const runtimeResponseDataSchemas = {
   scan: scanResultSchema,
   fill: z.array(fillResultSchema).max(MAX_OPERATIONS),
   restore: z.array(restoreResultSchema).max(MAX_OPERATIONS),
+  'set-learning': z.null(),
 } satisfies { [K in RuntimeRequestType]: z.ZodType<RuntimeResponseDataMap[K]> }
 
 export const runtimeErrorSchema = z.object({

@@ -18,9 +18,11 @@ import { ProfileManager } from './data/profile-manager'
 import { ProfileSelector } from './data/profile-selector'
 import { canSelectField, FieldList, isPreselected } from './field-list'
 import { FillBar } from './fill-bar'
+import { LearningConfirmationDialog } from './learning-confirmation-dialog'
 import { ConnectionBadge, PortalStatus } from './portal-status'
 import { EmptyState, ErrorState, PermissionNotice, RestrictedPageState } from './states'
 import { Button } from './ui/button'
+import { Label, Switch } from './ui/form-controls'
 import { Spinner } from './ui/misc'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
 
@@ -278,6 +280,10 @@ function PageFields({
   const [choices, setChoices] = useState<Record<string, string>>({})
   const [lastResults, setLastResults] = useState<FillResult[] | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [learningId, setLearningId] = useState<string | null>(null)
+  const [learningBusy, setLearningBusy] = useState(false)
+  const candidates = Object.values(state.learningCandidates)
+  const activeCandidate = learningId ? state.learningCandidates[learningId] ?? null : null
 
   const { selected, selectable } = useMemo(() => {
     const chosen = new Set<string>()
@@ -350,6 +356,30 @@ function PageFields({
   return (
     <>
       {hasFields && snapshot.status === 'ready' ? (
+        <div
+          data-slot="learning-bar"
+          className="ufa:flex ufa:flex-wrap ufa:items-center ufa:gap-3 ufa:rounded-md ufa:border ufa:border-border ufa:bg-card ufa:p-2.5"
+        >
+          <Switch
+            id="learning-arm"
+            checked={state.learningArmed}
+            disabled={!snapshot.settings.learning.allowed}
+            onCheckedChange={(checked) => void controller.setLearningArmed(checked)}
+          />
+          <Label htmlFor="learning-arm" className="ufa:text-sm">
+            {t('learning.arm')}
+          </Label>
+          <p className="ufa:min-w-0 ufa:flex-1 ufa:text-xs ufa:text-muted-foreground">
+            {t('learning.armHint')}
+          </p>
+          {candidates.length > 0 ? (
+            <Button size="sm" variant="secondary" onClick={() => setLearningId(candidates[0]!.id)}>
+              {t('learning.review')} ({candidates.length})
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+      {hasFields && snapshot.status === 'ready' ? (
         <FillBar
           mode={mode}
           onModeChange={changeMode}
@@ -374,6 +404,27 @@ function PageFields({
         onChoiceChange={choose}
         answers={snapshot.answers}
         scanning={state.scanning}
+      />
+      <LearningConfirmationDialog
+        candidate={activeCandidate}
+        open={learningId !== null}
+        busy={learningBusy}
+        onOpenChange={(open) => {
+          if (!open) setLearningId(null)
+        }}
+        onReject={() => {
+          if (learningId) controller.rejectLearning(learningId)
+          setLearningId(null)
+        }}
+        onConfirm={(draft) => {
+          if (!learningId) return
+          setLearningBusy(true)
+          void controller
+            .confirmLearning(learningId, draft)
+            .then(() => setLearningId(null))
+            .catch((error: unknown) => setMessage(toAutofillError(error).message))
+            .finally(() => setLearningBusy(false))
+        }}
       />
     </>
   )

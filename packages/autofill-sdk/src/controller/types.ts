@@ -4,6 +4,7 @@ import type {
   AutofillEventType,
   FieldDescriptor,
   FillResult,
+  LearningCandidate,
   Logger,
   MatchResult,
   PageDriver,
@@ -13,7 +14,7 @@ import type {
   RestoreResult,
   StorageAdapter,
 } from '@ufa/core'
-import type { AutofillStore } from '@ufa/storage'
+import type { AnswerDraft, AutofillStore } from '@ufa/storage'
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'ready' | 'error' | 'destroyed'
 
@@ -51,6 +52,10 @@ export interface AutofillState {
   canUndo: boolean
   /** When the field list was last refreshed, by a scan or a page update. */
   scannedAt: number | null
+  /** User armed capture on the connected page. */
+  learningArmed: boolean
+  /** Values the user typed into unmatched fields while learning was armed. */
+  learningCandidates: Record<string, LearningCandidate>
 }
 
 export interface FillRequest {
@@ -107,6 +112,12 @@ export interface AutofillController {
   fill(request?: FillRequest): Promise<FillResult[]>
   /** Puts back what the latest fill replaced, except fields the user changed since. */
   undo(): Promise<RestoreResult[]>
+  /** Arms or disarms learning capture on the connected page. */
+  setLearningArmed(armed: boolean): Promise<void>
+  /** Saves a pending learning candidate as an answer and removes it from the queue. */
+  confirmLearning(candidateId: string, draft: AnswerDraft): Promise<string>
+  /** Drops a pending learning candidate without saving. */
+  rejectLearning(candidateId: string): void
   destroy(): Promise<void>
 }
 

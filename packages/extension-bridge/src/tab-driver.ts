@@ -345,6 +345,15 @@ export function createExtensionTabDriver(options: ExtensionTabDriverOptions): Ex
       if (failure && results.length === 0) throw toAutofillError(failure)
       return results
     },
+    async setLearningArmed(armed, signal) {
+      requireConnection()
+      throwIfAborted(signal)
+      await Promise.all(
+        frameIds.map((frameId) =>
+          send('set-learning', { armed }, frameId, pingTimeout).catch(() => undefined),
+        ),
+      )
+    },
     subscribe(listener) {
       listeners.add(listener)
       attachChromeListeners()

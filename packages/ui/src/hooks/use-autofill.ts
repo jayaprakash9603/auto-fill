@@ -13,6 +13,8 @@ const DETACHED_STATE: AutofillState = {
   filling: false,
   canUndo: false,
   scannedAt: null,
+  learningArmed: false,
+  learningCandidates: {},
 }
 const noopSubscribe = () => () => {}
 const getNull = () => null

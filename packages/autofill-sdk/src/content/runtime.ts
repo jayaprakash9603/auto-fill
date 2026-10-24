@@ -53,6 +53,9 @@ async function handleRequest(driver: DomPageDriver, request: RuntimeRequest): Pr
       return driver.fill(request.operations)
     case 'restore':
       return driver.restore(request.snapshotId)
+    case 'set-learning':
+      await driver.setLearningArmed(request.armed)
+      return null
   }
 }
 

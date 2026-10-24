@@ -16,6 +16,7 @@ import {
 } from '@ufa/field-detection'
 import { createFormActions } from '@ufa/form-actions'
 
+import { createLearningWatcher } from './learning-watcher'
 import { SDK_VERSION } from '../version'
 
 export interface DomPageDriverOptions {
@@ -73,6 +74,13 @@ export function createDomPageDriver(options: DomPageDriverOptions = {}): DomPage
     listeners.forEach((listener) => listener(event))
   }
 
+  const learning = createLearningWatcher({
+    document: doc,
+    scanner,
+    onInput: (field, value) => emit({ type: 'field-input', field, value }),
+  })
+  learning.start()
+
   const observer = createFieldObserver({
     document: doc,
     getRoots: () => scanner.shadowRoots,
@@ -108,7 +116,12 @@ export function createDomPageDriver(options: DomPageDriverOptions = {}): DomPage
     },
     async fill(operations, signal) {
       throwIfAborted(signal)
+      learning.suppress(500)
       return actions.fill(operations, signal)
+    },
+    async setLearningArmed(armed, signal) {
+      throwIfAborted(signal)
+      learning.setArmed(armed)
     },
     async restore(snapshotId, signal) {
       throwIfAborted(signal)
@@ -121,6 +134,7 @@ export function createDomPageDriver(options: DomPageDriverOptions = {}): DomPage
     emit,
     async dispose() {
       disposed = true
+      learning.stop()
       observer.stop()
       listeners.clear()
     },

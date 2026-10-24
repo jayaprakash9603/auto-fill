@@ -15,6 +15,7 @@
     "@ufa/core": "workspace:*",
     "@ufa/field-detection": "workspace:*",
     "@ufa/form-actions": "workspace:*",
+    "@ufa/learning-engine": "workspace:*",
     "@ufa/matching-engine": "workspace:*",
     "@ufa/storage": "workspace:*",
     "zod": "^4.6.7"
