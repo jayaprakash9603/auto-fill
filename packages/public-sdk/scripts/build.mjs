@@ -91,6 +91,15 @@ function writePackageJson() {
     name: source.name,
     version: source.version,
     description: source.description,
+    repository: {
+      type: 'git',
+      url: 'git+https://github.com/jayaprakash9603/auto-fill.git',
+      directory: 'packages/public-sdk',
+    },
+    homepage: 'https://github.com/jayaprakash9603/auto-fill#readme',
+    bugs: { url: 'https://github.com/jayaprakash9603/auto-fill/issues' },
+    // Scoped packages publish as private unless told otherwise.
+    publishConfig: { access: 'public' },
     type: 'module',
     sideEffects: ['*.css', './content-script.js'],
     exports: {
