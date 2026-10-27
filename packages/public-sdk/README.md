@@ -3,6 +3,15 @@
 Form autofill engine, React panel and Chrome extension bridge, bundled into one package with no runtime
 dependencies. React 18.2+ or 19 is a peer dependency, only needed for `/react`.
 
+## Install
+
+The package is published as `@jayaprakash9603/universal-form-autofill`. Install it under the
+`@universal-form-autofill/sdk` alias so the imports below work as written:
+
+```sh
+npm install @universal-form-autofill/sdk@npm:@jayaprakash9603/universal-form-autofill
+```
+
 | Import                                           | Contents                                                        |
 | ------------------------------------------------ | --------------------------------------------------------------- |
 | `@universal-form-autofill/sdk`                   | Headless controller, field scanner, plugins, store and adapters |

@@ -80,6 +80,8 @@ function assertSelfContained() {
     throw new Error(`release/sdk is not self-contained:\n  ${offenders.join('\n  ')}`)
 }
 
+const PUBLISHED_NAME = '@jayaprakash9603/universal-form-autofill'
+
 function writePackageJson() {
   const source = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'))
   const subpath = (entry) => ({
@@ -88,7 +90,8 @@ function writePackageJson() {
     default: `./dist/${entry}.mjs`,
   })
   const manifest = {
-    name: source.name,
+    // The workspace keeps the import name; npm only knows the package under the owner's scope.
+    name: PUBLISHED_NAME,
     version: source.version,
     description: source.description,
     license: source.license,
