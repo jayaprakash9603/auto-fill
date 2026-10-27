@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build",
+    "content": "node ../../scripts/build-content-runtime.mjs public/content-script.js",
+    "build": "pnpm content && vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
