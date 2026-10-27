@@ -2,6 +2,7 @@
   "name": "@universal-form-autofill/sdk",
   "version": "0.1.0",
   "description": "Headless form autofill engine, React panel and extension bridge for Chrome extensions.",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "exports": {

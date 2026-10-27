@@ -91,6 +91,7 @@ function writePackageJson() {
     name: source.name,
     version: source.version,
     description: source.description,
+    license: source.license,
     repository: {
       type: 'git',
       url: 'git+https://github.com/jayaprakash9603/auto-fill.git',
@@ -114,7 +115,15 @@ function writePackageJson() {
     },
     types: './dist/index.d.mts',
     bin: { 'ufa-assets': './bin/ufa-assets.mjs' },
-    files: ['dist', 'bin', 'style.css', 'style.css.d.ts', 'content-script.js', 'README.md'],
+    files: [
+      'dist',
+      'bin',
+      'style.css',
+      'style.css.d.ts',
+      'content-script.js',
+      'README.md',
+      'LICENSE',
+    ],
     peerDependencies: source.peerDependencies,
     peerDependenciesMeta: { react: { optional: true }, 'react-dom': { optional: true } },
     engines: { node: '>=20.19' },
@@ -166,6 +175,7 @@ await buildContentRuntime(join(releaseDir, 'content-script.js'))
 cpSync(resolve(packageRoot, 'bin'), join(releaseDir, 'bin'), { recursive: true })
 if (existsSync(resolve(packageRoot, 'README.md')))
   cpSync(resolve(packageRoot, 'README.md'), join(releaseDir, 'README.md'))
+cpSync(resolve(repoRoot, 'LICENSE'), join(releaseDir, 'LICENSE'))
 writePackageJson()
 assertSelfContained()
 
